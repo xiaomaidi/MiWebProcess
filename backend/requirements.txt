@@ -1,0 +1,23 @@
+Django>=5.0,<6.0
+djangorestframework>=3.15
+djangorestframework-simplejwt>=5.3
+drf-spectacular>=0.27
+django-cors-headers>=4.3
+channels>=4.0
+daphne>=4.0
+celery>=5.3
+gunicorn>=21.2
+psycopg2-binary>=2.9
+psycopg[binary]>=3.1
+PyMySQL>=1.1
+# 外部 SQL Server（可选）：pip install pyodbc，并安装 Microsoft ODBC Driver 18
+# pyodbc>=5.1
+redis>=5.0
+boto3>=1.34
+cryptography>=42.0
+# 截图级 AI 视觉评审的像素体检（留白/对比度/配色/边缘）
+Pillow>=10.0
+# 可选：MQTT 桥接（未安装时 realtime 自动降级为纯 WebSocket）
+# paho-mqtt>=2.0
+# 可选：服务端 QuickJS 隔离求值（未安装时 core.expr 自动降级为 AST 白名单求值器）
+# py_quickjs>=1.4

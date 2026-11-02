@@ -1,0 +1,28 @@
+# DSH 真实 Agent 常驻 HTTP 包装器
+#
+# 构建：
+#   docker build -f services/Dockerfile.dsh -t miwebprocess-dsh .
+#
+# 运行：
+#   docker run --rm -p 9000:9000 \
+#     -e DEEPSEEK_API_KEY=... \
+#     -e DSH_NO_UPDATE_CHECK=1 \
+#     miwebprocess-dsh
+#
+# 生产环境建议通过 secrets 注入 DEEPSEEK_API_KEY，不要写进镜像。
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    DSH_NO_UPDATE_CHECK=1 \
+    DSH_HOME=/root/.dsh
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends nodejs npm ca-certificates \
+    && npm install -g @deepseek-ai/dsh \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY services/dsh_service.py /app/dsh_service.py
+
+EXPOSE 9000
+CMD ["python", "/app/dsh_service.py", "--host", "0.0.0.0", "--port", "9000", "--real"]

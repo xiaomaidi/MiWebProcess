@@ -1,0 +1,392 @@
+{
+  "schemaVersion": 1,
+  "components": [
+    {
+      "name": "wp-container", "label": "容器", "type": "layout", "category": "layout", "version": "1.0.0", "icon": "box",
+      "props_schema": { "type": "object", "properties": {
+        "layout": {"type": "string", "title": "布局模式", "default": "flex", "enum": ["flex", "grid"]},
+        "direction": {"type": "string", "title": "方向", "default": "column", "enum": ["column", "row"]},
+        "gap": {"type": "number", "title": "间距", "default": 8, "minimum": 0},
+        "padding": {"type": "number", "title": "内边距", "default": 8, "minimum": 0},
+        "background": {"type": "string", "title": "背景色", "default": "#f5f7fa", "x-ui": "color"},
+        "color": {"type": "string", "title": "文字色", "default": "#303133", "x-ui": "color"},
+        "align": {"type": "string", "title": "垂直对齐", "default": "stretch", "enum": ["stretch", "center", "flex-start", "flex-end"]},
+        "justify": {"type": "string", "title": "主轴对齐", "default": "flex-start", "enum": ["flex-start", "center", "flex-end", "space-between"]},
+        "borderRadius": {"type": "number", "title": "圆角", "default": 4, "minimum": 0}
+      }},
+      "default_props": {}, "events": ["click"], "slots": ["default"], "accept_children": ["*"]
+    },
+    {
+      "name": "wp-row", "label": "行布局", "type": "layout", "category": "layout", "version": "1.0.0", "icon": "row",
+      "props_schema": { "type": "object", "properties": {
+        "gap": {"type": "number", "title": "间距", "default": 8, "minimum": 0},
+        "align": {"type": "string", "title": "垂直对齐", "default": "center", "enum": ["stretch", "center", "flex-start", "flex-end"]},
+        "justify": {"type": "string", "title": "水平对齐", "default": "flex-start", "enum": ["flex-start", "center", "flex-end", "space-between"]},
+        "padding": {"type": "number", "title": "内边距", "default": 0, "minimum": 0},
+        "background": {"type": "string", "title": "背景色", "default": "transparent", "x-ui": "color"}
+      }},
+      "default_props": {}, "events": ["click"], "slots": ["default"], "accept_children": ["*"]
+    },
+    {
+      "name": "wp-column", "label": "列布局", "type": "layout", "category": "layout", "version": "1.0.0", "icon": "column",
+      "props_schema": { "type": "object", "properties": {
+        "gap": {"type": "number", "title": "间距", "default": 8, "minimum": 0},
+        "align": {"type": "string", "title": "水平对齐", "default": "stretch", "enum": ["stretch", "center", "flex-start", "flex-end"]},
+        "justify": {"type": "string", "title": "垂直对齐", "default": "flex-start", "enum": ["flex-start", "center", "flex-end", "space-between"]},
+        "padding": {"type": "number", "title": "内边距", "default": 0, "minimum": 0},
+        "background": {"type": "string", "title": "背景色", "default": "transparent", "x-ui": "color"}
+      }},
+      "default_props": {}, "events": ["click"], "slots": ["default"], "accept_children": ["*"]
+    },
+    {
+      "name": "wp-card", "label": "卡片", "type": "layout", "category": "layout", "version": "1.0.0", "icon": "card",
+      "props_schema": { "type": "object", "properties": {
+        "title": {"type": "string", "title": "标题", "default": ""},
+        "background": {"type": "string", "title": "背景色", "default": "#ffffff", "x-ui": "color"},
+        "padding": {"type": "number", "title": "内边距", "default": 16, "minimum": 0},
+        "shadow": {"type": "boolean", "title": "阴影", "default": true},
+        "bordered": {"type": "boolean", "title": "边框", "default": false},
+        "borderRadius": {"type": "number", "title": "圆角", "default": 8, "minimum": 0}
+      }},
+      "default_props": {}, "events": ["click"], "slots": ["header", "default", "footer"], "accept_children": ["*"]
+    },
+    {
+      "name": "wp-tabs", "label": "选项卡", "type": "layout", "category": "layout", "version": "1.0.0", "icon": "tabs",
+      "props_schema": { "type": "object", "properties": {
+        "tabAlign": {"type": "string", "title": "标签位置", "default": "top", "enum": ["top", "bottom"]}
+      }},
+      "default_props": {}, "events": [], "slots": ["default"], "accept_children": ["wp-tab-item"]
+    },
+    {
+      "name": "wp-tab-item", "label": "选项卡项", "type": "layout", "category": "layout", "version": "1.0.0", "icon": "tab",
+      "props_schema": { "type": "object", "properties": {
+        "label": {"type": "string", "title": "标签", "default": "选项卡"},
+        "disabled": {"type": "boolean", "title": "禁用", "default": false}
+      }},
+      "default_props": {}, "events": ["click"], "slots": ["default"], "accept_children": ["*"]
+    },
+    {
+      "name": "wp-grid", "label": "栅格", "type": "layout", "category": "layout", "version": "1.0.0", "icon": "grid",
+      "props_schema": { "type": "object", "properties": {
+        "columns": {"type": "number", "title": "列数", "default": 4, "minimum": 1, "maximum": 12},
+        "gap": {"type": "number", "title": "间距", "default": 8, "minimum": 0},
+        "padding": {"type": "number", "title": "内边距", "default": 8, "minimum": 0},
+        "background": {"type": "string", "title": "背景色", "default": "#f5f7fa", "x-ui": "color"}
+      }},
+      "default_props": {}, "events": ["click"], "slots": ["default"], "accept_children": ["*"]
+    },
+    {
+      "name": "wp-space", "label": "间距", "type": "layout", "category": "layout", "version": "1.0.0", "icon": "space",
+      "props_schema": { "type": "object", "properties": {
+        "size": {"type": "string", "title": "尺寸", "default": "default", "enum": ["small", "default", "large"]},
+        "direction": {"type": "string", "title": "方向", "default": "horizontal", "enum": ["horizontal", "vertical"]}
+      }},
+      "default_props": {}, "events": [], "slots": ["default"], "accept_children": ["wp-text", "wp-button", "wp-tag"]
+    },
+    {
+      "name": "wp-divider", "label": "分割线", "type": "layout", "category": "layout", "version": "1.0.0", "icon": "divider",
+      "props_schema": { "type": "object", "properties": {
+        "direction": {"type": "string", "title": "方向", "default": "horizontal", "enum": ["horizontal", "vertical"]},
+        "text": {"type": "string", "title": "分割线文字", "default": ""},
+        "color": {"type": "string", "title": "颜色", "default": "#dcdfe6", "x-ui": "color"}
+      }},
+      "default_props": {}, "events": [], "slots": [], "accept_children": []
+    },
+    {
+      "name": "wp-freebox", "label": "自由布局盒", "type": "layout", "category": "layout", "version": "1.0.0", "icon": "pin",
+      "props_schema": { "type": "object", "properties": {
+        "x": {"type": "number", "title": "X 坐标", "default": 0, "minimum": 0},
+        "y": {"type": "number", "title": "Y 坐标", "default": 0, "minimum": 0},
+        "width": {"type": "number", "title": "宽度", "default": 200, "minimum": 10},
+        "height": {"type": "number", "title": "高度", "default": 100, "minimum": 10},
+        "background": {"type": "string", "title": "背景色", "default": "#ffffff", "x-ui": "color"},
+        "borderRadius": {"type": "number", "title": "圆角", "default": 4, "minimum": 0},
+        "zIndex": {"type": "number", "title": "层级", "default": 0}
+      }},
+      "default_props": {}, "events": ["click"], "slots": ["default"], "accept_children": ["*"]
+    },
+    {
+      "name": "wp-text", "label": "文本", "type": "basic", "category": "basic", "version": "1.0.0", "icon": "text",
+      "props_schema": { "type": "object", "properties": {
+        "content": {"type": "string", "title": "内容", "default": "双击文本进行编辑"},
+        "fontSize": {"type": "number", "title": "字号", "default": 14, "minimum": 8},
+        "color": {"type": "string", "title": "颜色", "default": "#303133", "x-ui": "color"},
+        "fontWeight": {"type": "number", "title": "字重", "default": 400, "enum": [400, 500, 700]},
+        "lineHeight": {"type": "number", "title": "行高", "default": 1.5},
+        "align": {"type": "string", "title": "对齐", "default": "left", "enum": ["left", "center", "right"]},
+        "italic": {"type": "boolean", "title": "斜体", "default": false},
+        "ellipsis": {"type": "boolean", "title": "溢出省略", "default": false}
+      }},
+      "default_props": {}, "events": ["click"], "slots": [], "accept_children": []
+    },
+    {
+      "name": "wp-heading", "label": "标题", "type": "basic", "category": "basic", "version": "1.0.0", "icon": "heading",
+      "props_schema": { "type": "object", "properties": {
+        "content": {"type": "string", "title": "内容", "default": "标题"},
+        "level": {"type": "number", "title": "级别", "default": 2, "enum": [1, 2, 3, 4, 5, 6]},
+        "color": {"type": "string", "title": "颜色", "default": "#303133", "x-ui": "color"},
+        "align": {"type": "string", "title": "对齐", "default": "left", "enum": ["left", "center", "right"]},
+        "marginBottom": {"type": "number", "title": "下边距", "default": 8, "minimum": 0}
+      }},
+      "default_props": {}, "events": ["click"], "slots": [], "accept_children": []
+    },
+    {
+      "name": "wp-image", "label": "图片", "type": "basic", "category": "basic", "version": "1.0.0", "icon": "image",
+      "props_schema": { "type": "object", "properties": {
+        "src": {"type": "string", "title": "图片地址", "default": "", "x-ui": "url"},
+        "alt": {"type": "string", "title": "替代文字", "default": ""},
+        "width": {"type": "number", "title": "宽度", "default": 200, "minimum": 1},
+        "height": {"type": "number", "title": "高度", "default": 120, "minimum": 1},
+        "fit": {"type": "string", "title": "填充方式", "default": "cover", "enum": ["cover", "contain", "fill"]},
+        "borderRadius": {"type": "number", "title": "圆角", "default": 4, "minimum": 0}
+      }},
+      "default_props": {}, "events": ["click"], "slots": [], "accept_children": []
+    },
+    {
+      "name": "wp-button", "label": "按钮", "type": "basic", "category": "basic", "version": "1.0.0", "icon": "button",
+      "props_schema": { "type": "object", "properties": {
+        "label": {"type": "string", "title": "文字", "default": "按钮"},
+        "type": {"type": "string", "title": "类型", "default": "primary", "enum": ["primary", "success", "warning", "danger", "info", "default"]},
+        "size": {"type": "string", "title": "尺寸", "default": "default", "enum": ["small", "default", "large"]},
+        "plain": {"type": "boolean", "title": "朴素", "default": false},
+        "round": {"type": "boolean", "title": "圆角", "default": false},
+        "circle": {"type": "boolean", "title": "圆形", "default": false},
+        "disabled": {"type": "boolean", "title": "禁用", "default": false},
+        "block": {"type": "boolean", "title": "块级", "default": false}
+      }},
+      "default_props": {}, "events": ["click"], "slots": [], "accept_children": []
+    },
+    {
+      "name": "wp-link", "label": "链接", "type": "basic", "category": "basic", "version": "1.0.0", "icon": "link",
+      "props_schema": { "type": "object", "properties": {
+        "label": {"type": "string", "title": "文字", "default": "链接"},
+        "href": {"type": "string", "title": "地址", "default": "#", "x-ui": "url"},
+        "target": {"type": "string", "title": "打开方式", "default": "_self", "enum": ["_self", "_blank"]},
+        "type": {"type": "string", "title": "类型", "default": "primary", "enum": ["primary", "success", "warning", "danger", "info"]},
+        "underline": {"type": "boolean", "title": "下划线", "default": true},
+        "disabled": {"type": "boolean", "title": "禁用", "default": false}
+      }},
+      "default_props": {}, "events": ["click"], "slots": [], "accept_children": []
+    },
+    {
+      "name": "wp-tag", "label": "标签", "type": "basic", "category": "basic", "version": "1.0.0", "icon": "tag",
+      "props_schema": { "type": "object", "properties": {
+        "label": {"type": "string", "title": "文字", "default": "标签"},
+        "type": {"type": "string", "title": "类型", "default": "info", "enum": ["success", "info", "warning", "danger"]},
+        "size": {"type": "string", "title": "尺寸", "default": "default", "enum": ["small", "default", "large"]},
+        "effect": {"type": "string", "title": "效果", "default": "light", "enum": ["dark", "plain", "light"]},
+        "closable": {"type": "boolean", "title": "可关闭", "default": false}
+      }},
+      "default_props": {}, "events": ["click", "close"], "slots": [], "accept_children": []
+    },
+    {
+      "name": "wp-alert", "label": "警告", "type": "basic", "category": "basic", "version": "1.0.0", "icon": "alert",
+      "props_schema": { "type": "object", "properties": {
+        "title": {"type": "string", "title": "标题", "default": ""},
+        "content": {"type": "string", "title": "内容", "default": "这是一条警告提示"},
+        "type": {"type": "string", "title": "类型", "default": "info", "enum": ["success", "info", "warning", "danger"]},
+        "closable": {"type": "boolean", "title": "可关闭", "default": false},
+        "center": {"type": "boolean", "title": "居中", "default": false}
+      }},
+      "default_props": {}, "events": ["close"], "slots": [], "accept_children": []
+    },
+    {
+      "name": "wp-modal", "label": "弹窗", "type": "basic", "category": "basic", "version": "1.0.0", "icon": "modal",
+      "props_schema": { "type": "object", "properties": {
+        "title": {"type": "string", "title": "标题", "default": "弹窗标题"},
+        "visible": {"type": "boolean", "title": "默认显示", "default": false},
+        "width": {"type": "number", "title": "宽度", "default": 520, "minimum": 200},
+        "showClose": {"type": "boolean", "title": "关闭按钮", "default": true},
+        "closeOnClickMask": {"type": "boolean", "title": "点击遮罩关闭", "default": true},
+        "showFooter": {"type": "boolean", "title": "显示底部", "default": true}
+      }},
+      "default_props": {}, "events": ["open", "close"], "slots": ["default", "footer"], "accept_children": ["*"]
+    },
+    {
+      "name": "wp-badge", "label": "徽标", "type": "basic", "category": "basic", "version": "1.0.0", "icon": "badge",
+      "props_schema": { "type": "object", "properties": {
+        "value": {"type": "number", "title": "数值", "default": 0},
+        "max": {"type": "number", "title": "最大值", "default": 99},
+        "dot": {"type": "boolean", "title": "仅圆点", "default": false},
+        "type": {"type": "string", "title": "类型", "default": "danger", "enum": ["primary", "success", "warning", "danger", "info"]}
+      }},
+      "default_props": {}, "events": [], "slots": [], "accept_children": []
+    },
+    {
+      "name": "wp-form", "label": "表单", "type": "form", "category": "form", "version": "1.0.0", "icon": "form",
+      "props_schema": { "type": "object", "properties": {
+        "labelWidth": {"type": "number", "title": "标签宽度", "default": 100, "minimum": 0},
+        "labelPosition": {"type": "string", "title": "标签位置", "default": "right", "enum": ["right", "top"]},
+        "inline": {"type": "boolean", "title": "行内表单", "default": false},
+        "disabled": {"type": "boolean", "title": "禁用", "default": false}
+      }},
+      "default_props": {}, "events": ["submit", "reset"], "slots": ["default"],
+      "accept_children": ["wp-input", "wp-textarea", "wp-select", "wp-checkbox", "wp-radio", "wp-switch", "wp-number", "wp-date", "wp-text", "wp-divider", "wp-row", "wp-column", "wp-button"]
+    },
+    {
+      "name": "wp-input", "label": "输入框", "type": "form", "category": "form", "version": "1.0.0", "icon": "input",
+      "props_schema": { "type": "object", "properties": {
+        "field": {"type": "string", "title": "字段标识", "default": "field"},
+        "label": {"type": "string", "title": "标签", "default": ""},
+        "placeholder": {"type": "string", "title": "占位符", "default": "请输入"},
+        "type": {"type": "string", "title": "类型", "default": "text", "enum": ["text", "password"]},
+        "disabled": {"type": "boolean", "title": "禁用", "default": false},
+        "readonly": {"type": "boolean", "title": "只读", "default": false},
+        "clearable": {"type": "boolean", "title": "可清空", "default": true},
+        "maxlength": {"type": "number", "title": "最大长度", "default": 100}
+      }},
+      "default_props": {}, "events": ["input", "change", "clear"], "slots": [], "accept_children": []
+    },
+    {
+      "name": "wp-textarea", "label": "多行文本", "type": "form", "category": "form", "version": "1.0.0", "icon": "textarea",
+      "props_schema": { "type": "object", "properties": {
+        "field": {"type": "string", "title": "字段标识", "default": "field"},
+        "label": {"type": "string", "title": "标签", "default": ""},
+        "placeholder": {"type": "string", "title": "占位符", "default": "请输入"},
+        "rows": {"type": "number", "title": "行数", "default": 3, "minimum": 1},
+        "disabled": {"type": "boolean", "title": "禁用", "default": false},
+        "maxlength": {"type": "number", "title": "最大长度", "default": 500}
+      }},
+      "default_props": {}, "events": ["input", "change"], "slots": [], "accept_children": []
+    },
+    {
+      "name": "wp-select", "label": "选择框", "type": "form", "category": "form", "version": "1.0.0", "icon": "select",
+      "props_schema": { "type": "object", "properties": {
+        "field": {"type": "string", "title": "字段标识", "default": "field"},
+        "label": {"type": "string", "title": "标签", "default": ""},
+        "placeholder": {"type": "string", "title": "占位符", "default": "请选择"},
+        "options": {"type": "array", "title": "选项", "default": [{"label": "选项一", "value": "1"}, {"label": "选项二", "value": "2"}], "x-ui": "json", "items": {"type": "object"}},
+        "multiple": {"type": "boolean", "title": "多选", "default": false},
+        "clearable": {"type": "boolean", "title": "可清空", "default": true},
+        "disabled": {"type": "boolean", "title": "禁用", "default": false}
+      }},
+      "default_props": {}, "events": ["change"], "slots": [], "accept_children": []
+    },
+    {
+      "name": "wp-checkbox", "label": "复选框", "type": "form", "category": "form", "version": "1.0.0", "icon": "checkbox",
+      "props_schema": { "type": "object", "properties": {
+        "field": {"type": "string", "title": "字段标识", "default": "field"},
+        "label": {"type": "string", "title": "标签", "default": ""},
+        "text": {"type": "string", "title": "文字", "default": "同意条款"},
+        "checked": {"type": "boolean", "title": "默认勾选", "default": false},
+        "disabled": {"type": "boolean", "title": "禁用", "default": false}
+      }},
+      "default_props": {}, "events": ["change"], "slots": [], "accept_children": []
+    },
+    {
+      "name": "wp-radio", "label": "单选框", "type": "form", "category": "form", "version": "1.0.0", "icon": "radio",
+      "props_schema": { "type": "object", "properties": {
+        "field": {"type": "string", "title": "字段标识", "default": "field"},
+        "label": {"type": "string", "title": "标签", "default": ""},
+        "text": {"type": "string", "title": "文字", "default": "选项"},
+        "checked": {"type": "boolean", "title": "默认选中", "default": false},
+        "disabled": {"type": "boolean", "title": "禁用", "default": false}
+      }},
+      "default_props": {}, "events": ["change"], "slots": [], "accept_children": []
+    },
+    {
+      "name": "wp-switch", "label": "开关", "type": "form", "category": "form", "version": "1.0.0", "icon": "switch",
+      "props_schema": { "type": "object", "properties": {
+        "field": {"type": "string", "title": "字段标识", "default": "field"},
+        "label": {"type": "string", "title": "标签", "default": ""},
+        "text": {"type": "string", "title": "文字", "default": ""},
+        "checked": {"type": "boolean", "title": "默认开", "default": true},
+        "disabled": {"type": "boolean", "title": "禁用", "default": false}
+      }},
+      "default_props": {}, "events": ["change"], "slots": [], "accept_children": []
+    },
+    {
+      "name": "wp-number", "label": "数字输入", "type": "form", "category": "form", "version": "1.0.0", "icon": "number",
+      "props_schema": { "type": "object", "properties": {
+        "field": {"type": "string", "title": "字段标识", "default": "field"},
+        "label": {"type": "string", "title": "标签", "default": ""},
+        "min": {"type": "number", "title": "最小值", "default": 0},
+        "max": {"type": "number", "title": "最大值", "default": 100},
+        "step": {"type": "number", "title": "步长", "default": 1},
+        "precision": {"type": "number", "title": "精度", "default": 0, "minimum": 0},
+        "disabled": {"type": "boolean", "title": "禁用", "default": false}
+      }},
+      "default_props": {}, "events": ["change"], "slots": [], "accept_children": []
+    },
+    {
+      "name": "wp-date", "label": "日期", "type": "form", "category": "form", "version": "1.0.0", "icon": "date",
+      "props_schema": { "type": "object", "properties": {
+        "field": {"type": "string", "title": "字段标识", "default": "field"},
+        "label": {"type": "string", "title": "标签", "default": ""},
+        "type": {"type": "string", "title": "类型", "default": "date", "enum": ["date", "datetime", "time"]},
+        "placeholder": {"type": "string", "title": "占位符", "default": "选择日期"},
+        "disabled": {"type": "boolean", "title": "禁用", "default": false}
+      }},
+      "default_props": {}, "events": ["change"], "slots": [], "accept_children": []
+    },
+    {
+      "name": "wp-table", "label": "数据表格", "type": "data", "category": "data", "version": "1.0.0", "icon": "table",
+      "props_schema": { "type": "object", "properties": {
+        "columns": {"type": "array", "title": "列定义", "default": [{"key": "name", "label": "名称"}, {"key": "value", "label": "值"}], "x-ui": "json", "items": {"type": "object"}},
+        "pageSize": {"type": "number", "title": "每页条数", "default": 10, "minimum": 1},
+        "bordered": {"type": "boolean", "title": "边框", "default": true},
+        "stripe": {"type": "boolean", "title": "斑马纹", "default": true},
+        "showIndex": {"type": "boolean", "title": "序号列", "default": false},
+        "size": {"type": "string", "title": "尺寸", "default": "default", "enum": ["small", "default", "large"]}
+      }},
+      "default_props": {}, "events": ["rowClick", "pageChange"], "slots": [], "accept_children": []
+    },
+    {
+      "name": "wp-list", "label": "列表", "type": "data", "category": "data", "version": "1.0.0", "icon": "list",
+      "props_schema": { "type": "object", "properties": {
+        "direction": {"type": "string", "title": "方向", "default": "vertical", "enum": ["vertical", "horizontal"]},
+        "gap": {"type": "number", "title": "间距", "default": 8, "minimum": 0},
+        "padding": {"type": "number", "title": "内边距", "default": 8, "minimum": 0},
+        "background": {"type": "string", "title": "背景色", "default": "#ffffff", "x-ui": "color"},
+        "borderRadius": {"type": "number", "title": "圆角", "default": 4, "minimum": 0}
+      }},
+      "default_props": {}, "events": [], "slots": ["default"], "accept_children": ["*"]
+    },
+    {
+      "name": "wp-statcard", "label": "指标卡", "type": "data", "category": "data", "version": "1.0.0", "icon": "stat",
+      "props_schema": { "type": "object", "properties": {
+        "label": {"type": "string", "title": "指标名", "default": "指标"},
+        "suffix": {"type": "string", "title": "后缀", "default": ""},
+        "color": {"type": "string", "title": "数字颜色", "default": "#409eff", "x-ui": "color"},
+        "fontSize": {"type": "number", "title": "字号", "default": 28, "minimum": 12},
+        "background": {"type": "string", "title": "背景色", "default": "#ffffff", "x-ui": "color"},
+        "padding": {"type": "number", "title": "内边距", "default": 16, "minimum": 0},
+        "borderRadius": {"type": "number", "title": "圆角", "default": 8, "minimum": 0}
+      }},
+      "default_props": {}, "events": ["click"], "slots": [], "accept_children": []
+    },
+    {
+      "name": "wp-progress", "label": "进度条", "type": "data", "category": "data", "version": "1.0.0", "icon": "progress",
+      "props_schema": { "type": "object", "properties": {
+        "percent": {"type": "number", "title": "百分比", "default": 50, "minimum": 0, "maximum": 100},
+        "strokeColor": {"type": "string", "title": "进度色", "default": "#409eff", "x-ui": "color"},
+        "height": {"type": "number", "title": "高度", "default": 8, "minimum": 4},
+        "showText": {"type": "boolean", "title": "显示文字", "default": true}
+      }},
+      "default_props": {}, "events": [], "slots": [], "accept_children": []
+    },
+    {
+      "name": "wp-barchart", "label": "柱状图", "type": "data", "category": "data", "version": "1.0.0", "icon": "bar",
+      "props_schema": { "type": "object", "properties": {
+        "series": {"type": "array", "title": "系列（列字段）", "default": [{"key": "value", "label": "值", "color": "#409eff"}], "x-ui": "json", "items": {"type": "object"}},
+        "nameKey": {"type": "string", "title": "名称字段", "default": "name"},
+        "height": {"type": "number", "title": "高度", "default": 260, "minimum": 100},
+        "showLegend": {"type": "boolean", "title": "图例", "default": true},
+        "showGrid": {"type": "boolean", "title": "网格线", "default": true},
+        "barWidth": {"type": "number", "title": "柱宽", "default": 24}
+      }},
+      "default_props": {}, "events": ["pointClick"], "slots": [], "accept_children": []
+    },
+    {
+      "name": "wp-piechart", "label": "饼图", "type": "data", "category": "data", "version": "1.0.0", "icon": "pie",
+      "props_schema": { "type": "object", "properties": {
+        "nameKey": {"type": "string", "title": "名称字段", "default": "name"},
+        "valueKey": {"type": "string", "title": "数值字段", "default": "value"},
+        "height": {"type": "number", "title": "高度", "default": 260, "minimum": 100},
+        "showLegend": {"type": "boolean", "title": "图例", "default": true},
+        "showPercent": {"type": "boolean", "title": "百分比", "default": true}
+      }},
+      "default_props": {}, "events": ["pointClick"], "slots": [], "accept_children": []
+    }
+  ]
+}

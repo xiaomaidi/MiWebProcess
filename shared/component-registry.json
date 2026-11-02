@@ -1,0 +1,8639 @@
+{
+  "version": "2.0.0",
+  "schemaVersion": 2,
+  "categories": [
+    {
+      "key": "basic",
+      "label": "基础",
+      "icon": "Grid"
+    },
+    {
+      "key": "layout",
+      "label": "布局",
+      "icon": "Layout"
+    },
+    {
+      "key": "form",
+      "label": "表单",
+      "icon": "EditPen"
+    },
+    {
+      "key": "data",
+      "label": "数据展示",
+      "icon": "DataBoard"
+    },
+    {
+      "key": "feedback",
+      "label": "反馈",
+      "icon": "ChatDotRound"
+    },
+    {
+      "key": "nav",
+      "label": "导航",
+      "icon": "Compass"
+    },
+    {
+      "key": "media",
+      "label": "媒体/富文本",
+      "icon": "Picture"
+    },
+    {
+      "key": "chart",
+      "label": "图表",
+      "icon": "TrendCharts"
+    },
+    {
+      "key": "advanced",
+      "label": "高级/原生",
+      "icon": "MagicStick"
+    },
+    {
+      "key": "custom",
+      "label": "自定义",
+      "icon": "SetUp"
+    }
+  ],
+  "style_schema": {
+    "preset": "common",
+    "groups": [
+      "layout",
+      "size",
+      "spacing",
+      "typography",
+      "background",
+      "border",
+      "effect"
+    ],
+    "responsive": true
+  },
+  "components": [
+    {
+      "name": "wp-container",
+      "label": "容器",
+      "type": "layout",
+      "category": "layout",
+      "version": "1.0.0",
+      "icon": "box",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "layout": {
+            "type": "string",
+            "title": "布局模式",
+            "default": "flex",
+            "enum": [
+              "flex",
+              "grid"
+            ]
+          },
+          "direction": {
+            "type": "string",
+            "title": "方向",
+            "default": "column",
+            "enum": [
+              "column",
+              "row"
+            ]
+          },
+          "gap": {
+            "type": "number",
+            "title": "间距",
+            "default": 8,
+            "minimum": 0
+          },
+          "padding": {
+            "type": "number",
+            "title": "内边距",
+            "default": 8,
+            "minimum": 0
+          },
+          "background": {
+            "type": "string",
+            "title": "背景色",
+            "default": "#f5f7fa",
+            "x-ui": "color"
+          },
+          "color": {
+            "type": "string",
+            "title": "文字色",
+            "default": "#303133",
+            "x-ui": "color"
+          },
+          "align": {
+            "type": "string",
+            "title": "垂直对齐",
+            "default": "stretch",
+            "enum": [
+              "stretch",
+              "center",
+              "flex-start",
+              "flex-end"
+            ]
+          },
+          "justify": {
+            "type": "string",
+            "title": "主轴对齐",
+            "default": "flex-start",
+            "enum": [
+              "flex-start",
+              "center",
+              "flex-end",
+              "space-between"
+            ]
+          },
+          "borderRadius": {
+            "type": "number",
+            "title": "圆角",
+            "default": 4,
+            "minimum": 0
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "click"
+      ],
+      "slots": [
+        "default"
+      ],
+      "accept_children": [
+        "*"
+      ]
+    },
+    {
+      "name": "wp-row",
+      "label": "行布局",
+      "type": "layout",
+      "category": "layout",
+      "version": "1.0.0",
+      "icon": "row",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "gap": {
+            "type": "number",
+            "title": "间距",
+            "default": 8,
+            "minimum": 0
+          },
+          "align": {
+            "type": "string",
+            "title": "垂直对齐",
+            "default": "center",
+            "enum": [
+              "stretch",
+              "center",
+              "flex-start",
+              "flex-end"
+            ]
+          },
+          "justify": {
+            "type": "string",
+            "title": "水平对齐",
+            "default": "flex-start",
+            "enum": [
+              "flex-start",
+              "center",
+              "flex-end",
+              "space-between"
+            ]
+          },
+          "padding": {
+            "type": "number",
+            "title": "内边距",
+            "default": 0,
+            "minimum": 0
+          },
+          "background": {
+            "type": "string",
+            "title": "背景色",
+            "default": "transparent",
+            "x-ui": "color"
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "click"
+      ],
+      "slots": [
+        "default"
+      ],
+      "accept_children": [
+        "*"
+      ]
+    },
+    {
+      "name": "wp-column",
+      "label": "列布局",
+      "type": "layout",
+      "category": "layout",
+      "version": "1.0.0",
+      "icon": "column",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "gap": {
+            "type": "number",
+            "title": "间距",
+            "default": 8,
+            "minimum": 0
+          },
+          "align": {
+            "type": "string",
+            "title": "水平对齐",
+            "default": "stretch",
+            "enum": [
+              "stretch",
+              "center",
+              "flex-start",
+              "flex-end"
+            ]
+          },
+          "justify": {
+            "type": "string",
+            "title": "垂直对齐",
+            "default": "flex-start",
+            "enum": [
+              "flex-start",
+              "center",
+              "flex-end",
+              "space-between"
+            ]
+          },
+          "padding": {
+            "type": "number",
+            "title": "内边距",
+            "default": 0,
+            "minimum": 0
+          },
+          "background": {
+            "type": "string",
+            "title": "背景色",
+            "default": "transparent",
+            "x-ui": "color"
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "click"
+      ],
+      "slots": [
+        "default"
+      ],
+      "accept_children": [
+        "*"
+      ]
+    },
+    {
+      "name": "wp-card",
+      "label": "卡片",
+      "type": "layout",
+      "category": "layout",
+      "version": "1.0.0",
+      "icon": "card",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "标题",
+            "default": ""
+          },
+          "background": {
+            "type": "string",
+            "title": "背景色",
+            "default": "#ffffff",
+            "x-ui": "color"
+          },
+          "padding": {
+            "type": "number",
+            "title": "内边距",
+            "default": 16,
+            "minimum": 0
+          },
+          "shadow": {
+            "type": "boolean",
+            "title": "阴影",
+            "default": true
+          },
+          "bordered": {
+            "type": "boolean",
+            "title": "边框",
+            "default": false
+          },
+          "borderRadius": {
+            "type": "number",
+            "title": "圆角",
+            "default": 8,
+            "minimum": 0
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "click"
+      ],
+      "slots": [
+        "header",
+        "default",
+        "footer"
+      ],
+      "accept_children": [
+        "*"
+      ]
+    },
+    {
+      "name": "wp-tabs",
+      "label": "选项卡",
+      "type": "layout",
+      "category": "layout",
+      "version": "1.0.0",
+      "icon": "tabs",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "tabAlign": {
+            "type": "string",
+            "title": "标签位置",
+            "default": "top",
+            "enum": [
+              "top",
+              "bottom"
+            ]
+          }
+        }
+      },
+      "default_props": {},
+      "events": [],
+      "slots": [
+        "default"
+      ],
+      "accept_children": [
+        "wp-tab-item"
+      ]
+    },
+    {
+      "name": "wp-tab-item",
+      "label": "选项卡项",
+      "type": "layout",
+      "category": "layout",
+      "version": "1.0.0",
+      "icon": "tab",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "标签",
+            "default": "选项卡"
+          },
+          "disabled": {
+            "type": "boolean",
+            "title": "禁用",
+            "default": false
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "click"
+      ],
+      "slots": [
+        "default"
+      ],
+      "accept_children": [
+        "*"
+      ]
+    },
+    {
+      "name": "wp-grid",
+      "label": "栅格",
+      "type": "layout",
+      "category": "layout",
+      "version": "1.0.0",
+      "icon": "grid",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "columns": {
+            "type": "number",
+            "title": "列数",
+            "default": 4,
+            "minimum": 1,
+            "maximum": 12
+          },
+          "gap": {
+            "type": "number",
+            "title": "间距",
+            "default": 8,
+            "minimum": 0
+          },
+          "padding": {
+            "type": "number",
+            "title": "内边距",
+            "default": 8,
+            "minimum": 0
+          },
+          "background": {
+            "type": "string",
+            "title": "背景色",
+            "default": "#f5f7fa",
+            "x-ui": "color"
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "click"
+      ],
+      "slots": [
+        "default"
+      ],
+      "accept_children": [
+        "*"
+      ]
+    },
+    {
+      "name": "wp-space",
+      "label": "间距",
+      "type": "layout",
+      "category": "layout",
+      "version": "1.0.0",
+      "icon": "space",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "size": {
+            "type": "string",
+            "title": "尺寸",
+            "default": "default",
+            "enum": [
+              "small",
+              "default",
+              "large"
+            ]
+          },
+          "direction": {
+            "type": "string",
+            "title": "方向",
+            "default": "horizontal",
+            "enum": [
+              "horizontal",
+              "vertical"
+            ]
+          }
+        }
+      },
+      "default_props": {},
+      "events": [],
+      "slots": [
+        "default"
+      ],
+      "accept_children": [
+        "wp-text",
+        "wp-button",
+        "wp-tag"
+      ]
+    },
+    {
+      "name": "wp-divider",
+      "label": "分割线",
+      "type": "layout",
+      "category": "layout",
+      "version": "1.0.0",
+      "icon": "divider",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "direction": {
+            "type": "string",
+            "title": "方向",
+            "default": "horizontal",
+            "enum": [
+              "horizontal",
+              "vertical"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "title": "分割线文字",
+            "default": ""
+          },
+          "color": {
+            "type": "string",
+            "title": "颜色",
+            "default": "#dcdfe6",
+            "x-ui": "color"
+          }
+        }
+      },
+      "default_props": {},
+      "events": [],
+      "slots": [],
+      "accept_children": []
+    },
+    {
+      "name": "wp-freebox",
+      "label": "自由布局盒",
+      "type": "layout",
+      "category": "layout",
+      "version": "1.0.0",
+      "icon": "pin",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number",
+            "title": "X 坐标",
+            "default": 0,
+            "minimum": 0
+          },
+          "y": {
+            "type": "number",
+            "title": "Y 坐标",
+            "default": 0,
+            "minimum": 0
+          },
+          "width": {
+            "type": "number",
+            "title": "宽度",
+            "default": 200,
+            "minimum": 10
+          },
+          "height": {
+            "type": "number",
+            "title": "高度",
+            "default": 100,
+            "minimum": 10
+          },
+          "background": {
+            "type": "string",
+            "title": "背景色",
+            "default": "#ffffff",
+            "x-ui": "color"
+          },
+          "borderRadius": {
+            "type": "number",
+            "title": "圆角",
+            "default": 4,
+            "minimum": 0
+          },
+          "zIndex": {
+            "type": "number",
+            "title": "层级",
+            "default": 0
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "click"
+      ],
+      "slots": [
+        "default"
+      ],
+      "accept_children": [
+        "*"
+      ]
+    },
+    {
+      "name": "wp-text",
+      "label": "文本",
+      "type": "basic",
+      "category": "basic",
+      "version": "1.0.0",
+      "icon": "text",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "title": "内容",
+            "default": "双击文本进行编辑"
+          },
+          "fontSize": {
+            "type": "number",
+            "title": "字号",
+            "default": 14,
+            "minimum": 8
+          },
+          "color": {
+            "type": "string",
+            "title": "颜色",
+            "default": "#303133",
+            "x-ui": "color"
+          },
+          "fontWeight": {
+            "type": "number",
+            "title": "字重",
+            "default": 400,
+            "enum": [
+              400,
+              500,
+              700
+            ]
+          },
+          "lineHeight": {
+            "type": "number",
+            "title": "行高",
+            "default": 1.5
+          },
+          "align": {
+            "type": "string",
+            "title": "对齐",
+            "default": "left",
+            "enum": [
+              "left",
+              "center",
+              "right"
+            ]
+          },
+          "italic": {
+            "type": "boolean",
+            "title": "斜体",
+            "default": false
+          },
+          "ellipsis": {
+            "type": "boolean",
+            "title": "溢出省略",
+            "default": false
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "click"
+      ],
+      "slots": [],
+      "accept_children": []
+    },
+    {
+      "name": "wp-heading",
+      "label": "标题",
+      "type": "basic",
+      "category": "basic",
+      "version": "1.0.0",
+      "icon": "heading",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "title": "内容",
+            "default": "标题"
+          },
+          "level": {
+            "type": "number",
+            "title": "级别",
+            "default": 2,
+            "enum": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ]
+          },
+          "color": {
+            "type": "string",
+            "title": "颜色",
+            "default": "#303133",
+            "x-ui": "color"
+          },
+          "align": {
+            "type": "string",
+            "title": "对齐",
+            "default": "left",
+            "enum": [
+              "left",
+              "center",
+              "right"
+            ]
+          },
+          "marginBottom": {
+            "type": "number",
+            "title": "下边距",
+            "default": 8,
+            "minimum": 0
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "click"
+      ],
+      "slots": [],
+      "accept_children": []
+    },
+    {
+      "name": "wp-image",
+      "label": "图片",
+      "type": "basic",
+      "category": "basic",
+      "version": "1.0.0",
+      "icon": "image",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "src": {
+            "type": "string",
+            "title": "图片地址",
+            "default": "",
+            "x-ui": "url"
+          },
+          "alt": {
+            "type": "string",
+            "title": "替代文字",
+            "default": ""
+          },
+          "width": {
+            "type": "number",
+            "title": "宽度",
+            "default": 200,
+            "minimum": 1
+          },
+          "height": {
+            "type": "number",
+            "title": "高度",
+            "default": 120,
+            "minimum": 1
+          },
+          "fit": {
+            "type": "string",
+            "title": "填充方式",
+            "default": "cover",
+            "enum": [
+              "cover",
+              "contain",
+              "fill"
+            ]
+          },
+          "borderRadius": {
+            "type": "number",
+            "title": "圆角",
+            "default": 4,
+            "minimum": 0
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "click"
+      ],
+      "slots": [],
+      "accept_children": []
+    },
+    {
+      "name": "wp-button",
+      "label": "按钮",
+      "type": "basic",
+      "category": "basic",
+      "version": "1.0.0",
+      "icon": "button",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "文字",
+            "default": "按钮"
+          },
+          "type": {
+            "type": "string",
+            "title": "类型",
+            "default": "primary",
+            "enum": [
+              "primary",
+              "success",
+              "warning",
+              "danger",
+              "info",
+              "default"
+            ]
+          },
+          "size": {
+            "type": "string",
+            "title": "尺寸",
+            "default": "default",
+            "enum": [
+              "small",
+              "default",
+              "large"
+            ]
+          },
+          "plain": {
+            "type": "boolean",
+            "title": "朴素",
+            "default": false
+          },
+          "round": {
+            "type": "boolean",
+            "title": "圆角",
+            "default": false
+          },
+          "circle": {
+            "type": "boolean",
+            "title": "圆形",
+            "default": false
+          },
+          "disabled": {
+            "type": "boolean",
+            "title": "禁用",
+            "default": false
+          },
+          "block": {
+            "type": "boolean",
+            "title": "块级",
+            "default": false
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "click"
+      ],
+      "slots": [],
+      "accept_children": []
+    },
+    {
+      "name": "wp-link",
+      "label": "链接",
+      "type": "basic",
+      "category": "basic",
+      "version": "1.0.0",
+      "icon": "link",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "文字",
+            "default": "链接"
+          },
+          "href": {
+            "type": "string",
+            "title": "地址",
+            "default": "#",
+            "x-ui": "url"
+          },
+          "target": {
+            "type": "string",
+            "title": "打开方式",
+            "default": "_self",
+            "enum": [
+              "_self",
+              "_blank"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "title": "类型",
+            "default": "primary",
+            "enum": [
+              "primary",
+              "success",
+              "warning",
+              "danger",
+              "info"
+            ]
+          },
+          "underline": {
+            "type": "boolean",
+            "title": "下划线",
+            "default": true
+          },
+          "disabled": {
+            "type": "boolean",
+            "title": "禁用",
+            "default": false
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "click"
+      ],
+      "slots": [],
+      "accept_children": []
+    },
+    {
+      "name": "wp-tag",
+      "label": "标签",
+      "type": "basic",
+      "category": "basic",
+      "version": "1.0.0",
+      "icon": "tag",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "文字",
+            "default": "标签"
+          },
+          "type": {
+            "type": "string",
+            "title": "类型",
+            "default": "info",
+            "enum": [
+              "success",
+              "info",
+              "warning",
+              "danger"
+            ]
+          },
+          "size": {
+            "type": "string",
+            "title": "尺寸",
+            "default": "default",
+            "enum": [
+              "small",
+              "default",
+              "large"
+            ]
+          },
+          "effect": {
+            "type": "string",
+            "title": "效果",
+            "default": "light",
+            "enum": [
+              "dark",
+              "plain",
+              "light"
+            ]
+          },
+          "closable": {
+            "type": "boolean",
+            "title": "可关闭",
+            "default": false
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "click",
+        "close"
+      ],
+      "slots": [],
+      "accept_children": []
+    },
+    {
+      "name": "wp-alert",
+      "label": "警告",
+      "type": "basic",
+      "category": "basic",
+      "version": "1.0.0",
+      "icon": "alert",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "标题",
+            "default": ""
+          },
+          "content": {
+            "type": "string",
+            "title": "内容",
+            "default": "这是一条警告提示"
+          },
+          "type": {
+            "type": "string",
+            "title": "类型",
+            "default": "info",
+            "enum": [
+              "success",
+              "info",
+              "warning",
+              "danger"
+            ]
+          },
+          "closable": {
+            "type": "boolean",
+            "title": "可关闭",
+            "default": false
+          },
+          "center": {
+            "type": "boolean",
+            "title": "居中",
+            "default": false
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "close"
+      ],
+      "slots": [],
+      "accept_children": []
+    },
+    {
+      "name": "wp-modal",
+      "label": "弹窗",
+      "type": "basic",
+      "category": "basic",
+      "version": "1.0.0",
+      "icon": "modal",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "标题",
+            "default": "弹窗标题"
+          },
+          "visible": {
+            "type": "boolean",
+            "title": "默认显示",
+            "default": false
+          },
+          "width": {
+            "type": "number",
+            "title": "宽度",
+            "default": 520,
+            "minimum": 200
+          },
+          "showClose": {
+            "type": "boolean",
+            "title": "关闭按钮",
+            "default": true
+          },
+          "closeOnClickMask": {
+            "type": "boolean",
+            "title": "点击遮罩关闭",
+            "default": true
+          },
+          "showFooter": {
+            "type": "boolean",
+            "title": "显示底部",
+            "default": true
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "open",
+        "close"
+      ],
+      "slots": [
+        "default",
+        "footer"
+      ],
+      "accept_children": [
+        "*"
+      ]
+    },
+    {
+      "name": "wp-badge",
+      "label": "徽标",
+      "type": "basic",
+      "category": "basic",
+      "version": "1.0.0",
+      "icon": "badge",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "number",
+            "title": "数值",
+            "default": 0
+          },
+          "max": {
+            "type": "number",
+            "title": "最大值",
+            "default": 99
+          },
+          "dot": {
+            "type": "boolean",
+            "title": "仅圆点",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "title": "类型",
+            "default": "danger",
+            "enum": [
+              "primary",
+              "success",
+              "warning",
+              "danger",
+              "info"
+            ]
+          }
+        }
+      },
+      "default_props": {},
+      "events": [],
+      "slots": [],
+      "accept_children": []
+    },
+    {
+      "name": "wp-form",
+      "label": "表单",
+      "type": "form",
+      "category": "form",
+      "version": "1.0.0",
+      "icon": "form",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "labelWidth": {
+            "type": "number",
+            "title": "标签宽度",
+            "default": 100,
+            "minimum": 0
+          },
+          "labelPosition": {
+            "type": "string",
+            "title": "标签位置",
+            "default": "right",
+            "enum": [
+              "right",
+              "top"
+            ]
+          },
+          "inline": {
+            "type": "boolean",
+            "title": "行内表单",
+            "default": false
+          },
+          "disabled": {
+            "type": "boolean",
+            "title": "禁用",
+            "default": false
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "submit",
+        "reset"
+      ],
+      "slots": [
+        "default"
+      ],
+      "accept_children": [
+        "wp-input",
+        "wp-textarea",
+        "wp-select",
+        "wp-checkbox",
+        "wp-radio",
+        "wp-switch",
+        "wp-number",
+        "wp-date",
+        "wp-text",
+        "wp-divider",
+        "wp-row",
+        "wp-column",
+        "wp-button"
+      ]
+    },
+    {
+      "name": "wp-input",
+      "label": "输入框",
+      "type": "form",
+      "category": "form",
+      "version": "1.0.0",
+      "icon": "input",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "字段标识",
+            "default": "field"
+          },
+          "label": {
+            "type": "string",
+            "title": "标签",
+            "default": ""
+          },
+          "placeholder": {
+            "type": "string",
+            "title": "占位符",
+            "default": "请输入"
+          },
+          "type": {
+            "type": "string",
+            "title": "类型",
+            "default": "text",
+            "enum": [
+              "text",
+              "password"
+            ]
+          },
+          "disabled": {
+            "type": "boolean",
+            "title": "禁用",
+            "default": false
+          },
+          "readonly": {
+            "type": "boolean",
+            "title": "只读",
+            "default": false
+          },
+          "clearable": {
+            "type": "boolean",
+            "title": "可清空",
+            "default": true
+          },
+          "maxlength": {
+            "type": "number",
+            "title": "最大长度",
+            "default": 100
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "input",
+        "change",
+        "clear"
+      ],
+      "slots": [],
+      "accept_children": []
+    },
+    {
+      "name": "wp-textarea",
+      "label": "多行文本",
+      "type": "form",
+      "category": "form",
+      "version": "1.0.0",
+      "icon": "textarea",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "字段标识",
+            "default": "field"
+          },
+          "label": {
+            "type": "string",
+            "title": "标签",
+            "default": ""
+          },
+          "placeholder": {
+            "type": "string",
+            "title": "占位符",
+            "default": "请输入"
+          },
+          "rows": {
+            "type": "number",
+            "title": "行数",
+            "default": 3,
+            "minimum": 1
+          },
+          "disabled": {
+            "type": "boolean",
+            "title": "禁用",
+            "default": false
+          },
+          "maxlength": {
+            "type": "number",
+            "title": "最大长度",
+            "default": 500
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "input",
+        "change"
+      ],
+      "slots": [],
+      "accept_children": []
+    },
+    {
+      "name": "wp-select",
+      "label": "选择框",
+      "type": "form",
+      "category": "form",
+      "version": "1.0.0",
+      "icon": "select",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "字段标识",
+            "default": "field"
+          },
+          "label": {
+            "type": "string",
+            "title": "标签",
+            "default": ""
+          },
+          "placeholder": {
+            "type": "string",
+            "title": "占位符",
+            "default": "请选择"
+          },
+          "options": {
+            "type": "array",
+            "title": "选项",
+            "default": [
+              {
+                "label": "选项一",
+                "value": "1"
+              },
+              {
+                "label": "选项二",
+                "value": "2"
+              }
+            ],
+            "x-ui": "json",
+            "items": {
+              "type": "object"
+            }
+          },
+          "multiple": {
+            "type": "boolean",
+            "title": "多选",
+            "default": false
+          },
+          "clearable": {
+            "type": "boolean",
+            "title": "可清空",
+            "default": true
+          },
+          "disabled": {
+            "type": "boolean",
+            "title": "禁用",
+            "default": false
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "change"
+      ],
+      "slots": [],
+      "accept_children": []
+    },
+    {
+      "name": "wp-checkbox",
+      "label": "复选框",
+      "type": "form",
+      "category": "form",
+      "version": "1.0.0",
+      "icon": "checkbox",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "字段标识",
+            "default": "field"
+          },
+          "label": {
+            "type": "string",
+            "title": "标签",
+            "default": ""
+          },
+          "text": {
+            "type": "string",
+            "title": "文字",
+            "default": "同意条款"
+          },
+          "checked": {
+            "type": "boolean",
+            "title": "默认勾选",
+            "default": false
+          },
+          "disabled": {
+            "type": "boolean",
+            "title": "禁用",
+            "default": false
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "change"
+      ],
+      "slots": [],
+      "accept_children": []
+    },
+    {
+      "name": "wp-radio",
+      "label": "单选框",
+      "type": "form",
+      "category": "form",
+      "version": "1.0.0",
+      "icon": "radio",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "字段标识",
+            "default": "field"
+          },
+          "label": {
+            "type": "string",
+            "title": "标签",
+            "default": ""
+          },
+          "text": {
+            "type": "string",
+            "title": "文字",
+            "default": "选项"
+          },
+          "checked": {
+            "type": "boolean",
+            "title": "默认选中",
+            "default": false
+          },
+          "disabled": {
+            "type": "boolean",
+            "title": "禁用",
+            "default": false
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "change"
+      ],
+      "slots": [],
+      "accept_children": []
+    },
+    {
+      "name": "wp-switch",
+      "label": "开关",
+      "type": "form",
+      "category": "form",
+      "version": "1.0.0",
+      "icon": "switch",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "字段标识",
+            "default": "field"
+          },
+          "label": {
+            "type": "string",
+            "title": "标签",
+            "default": ""
+          },
+          "text": {
+            "type": "string",
+            "title": "文字",
+            "default": ""
+          },
+          "checked": {
+            "type": "boolean",
+            "title": "默认开",
+            "default": true
+          },
+          "disabled": {
+            "type": "boolean",
+            "title": "禁用",
+            "default": false
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "change"
+      ],
+      "slots": [],
+      "accept_children": []
+    },
+    {
+      "name": "wp-number",
+      "label": "数字输入",
+      "type": "form",
+      "category": "form",
+      "version": "1.0.0",
+      "icon": "number",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "字段标识",
+            "default": "field"
+          },
+          "label": {
+            "type": "string",
+            "title": "标签",
+            "default": ""
+          },
+          "min": {
+            "type": "number",
+            "title": "最小值",
+            "default": 0
+          },
+          "max": {
+            "type": "number",
+            "title": "最大值",
+            "default": 100
+          },
+          "step": {
+            "type": "number",
+            "title": "步长",
+            "default": 1
+          },
+          "precision": {
+            "type": "number",
+            "title": "精度",
+            "default": 0,
+            "minimum": 0
+          },
+          "disabled": {
+            "type": "boolean",
+            "title": "禁用",
+            "default": false
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "change"
+      ],
+      "slots": [],
+      "accept_children": []
+    },
+    {
+      "name": "wp-date",
+      "label": "日期",
+      "type": "form",
+      "category": "form",
+      "version": "1.0.0",
+      "icon": "date",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "字段标识",
+            "default": "field"
+          },
+          "label": {
+            "type": "string",
+            "title": "标签",
+            "default": ""
+          },
+          "type": {
+            "type": "string",
+            "title": "类型",
+            "default": "date",
+            "enum": [
+              "date",
+              "datetime",
+              "time"
+            ]
+          },
+          "placeholder": {
+            "type": "string",
+            "title": "占位符",
+            "default": "选择日期"
+          },
+          "disabled": {
+            "type": "boolean",
+            "title": "禁用",
+            "default": false
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "change"
+      ],
+      "slots": [],
+      "accept_children": []
+    },
+    {
+      "name": "wp-table",
+      "label": "数据表格",
+      "type": "data",
+      "category": "data",
+      "version": "1.0.0",
+      "icon": "table",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "columns": {
+            "type": "array",
+            "title": "列定义",
+            "default": [
+              {
+                "key": "name",
+                "label": "名称"
+              },
+              {
+                "key": "value",
+                "label": "值"
+              }
+            ],
+            "x-ui": "json",
+            "items": {
+              "type": "object"
+            }
+          },
+          "pageSize": {
+            "type": "number",
+            "title": "每页条数",
+            "default": 10,
+            "minimum": 1
+          },
+          "bordered": {
+            "type": "boolean",
+            "title": "边框",
+            "default": true
+          },
+          "stripe": {
+            "type": "boolean",
+            "title": "斑马纹",
+            "default": true
+          },
+          "showIndex": {
+            "type": "boolean",
+            "title": "序号列",
+            "default": false
+          },
+          "size": {
+            "type": "string",
+            "title": "尺寸",
+            "default": "default",
+            "enum": [
+              "small",
+              "default",
+              "large"
+            ]
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "rowClick",
+        "pageChange"
+      ],
+      "slots": [],
+      "accept_children": []
+    },
+    {
+      "name": "wp-list",
+      "label": "列表",
+      "type": "data",
+      "category": "data",
+      "version": "1.0.0",
+      "icon": "list",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "direction": {
+            "type": "string",
+            "title": "方向",
+            "default": "vertical",
+            "enum": [
+              "vertical",
+              "horizontal"
+            ]
+          },
+          "gap": {
+            "type": "number",
+            "title": "间距",
+            "default": 8,
+            "minimum": 0
+          },
+          "padding": {
+            "type": "number",
+            "title": "内边距",
+            "default": 8,
+            "minimum": 0
+          },
+          "background": {
+            "type": "string",
+            "title": "背景色",
+            "default": "#ffffff",
+            "x-ui": "color"
+          },
+          "borderRadius": {
+            "type": "number",
+            "title": "圆角",
+            "default": 4,
+            "minimum": 0
+          }
+        }
+      },
+      "default_props": {},
+      "events": [],
+      "slots": [
+        "default"
+      ],
+      "accept_children": [
+        "*"
+      ]
+    },
+    {
+      "name": "wp-statcard",
+      "label": "指标卡",
+      "type": "data",
+      "category": "data",
+      "version": "1.0.0",
+      "icon": "stat",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "指标名",
+            "default": "指标"
+          },
+          "suffix": {
+            "type": "string",
+            "title": "后缀",
+            "default": ""
+          },
+          "color": {
+            "type": "string",
+            "title": "数字颜色",
+            "default": "#409eff",
+            "x-ui": "color"
+          },
+          "fontSize": {
+            "type": "number",
+            "title": "字号",
+            "default": 28,
+            "minimum": 12
+          },
+          "background": {
+            "type": "string",
+            "title": "背景色",
+            "default": "#ffffff",
+            "x-ui": "color"
+          },
+          "padding": {
+            "type": "number",
+            "title": "内边距",
+            "default": 16,
+            "minimum": 0
+          },
+          "borderRadius": {
+            "type": "number",
+            "title": "圆角",
+            "default": 8,
+            "minimum": 0
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "click"
+      ],
+      "slots": [],
+      "accept_children": []
+    },
+    {
+      "name": "wp-progress",
+      "label": "进度条",
+      "type": "data",
+      "category": "data",
+      "version": "1.0.0",
+      "icon": "progress",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "percent": {
+            "type": "number",
+            "title": "百分比",
+            "default": 50,
+            "minimum": 0,
+            "maximum": 100
+          },
+          "strokeColor": {
+            "type": "string",
+            "title": "进度色",
+            "default": "#409eff",
+            "x-ui": "color"
+          },
+          "height": {
+            "type": "number",
+            "title": "高度",
+            "default": 8,
+            "minimum": 4
+          },
+          "showText": {
+            "type": "boolean",
+            "title": "显示文字",
+            "default": true
+          }
+        }
+      },
+      "default_props": {},
+      "events": [],
+      "slots": [],
+      "accept_children": []
+    },
+    {
+      "name": "wp-barchart",
+      "label": "柱状图",
+      "type": "data",
+      "category": "data",
+      "version": "1.0.0",
+      "icon": "bar",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "series": {
+            "type": "array",
+            "title": "系列（列字段）",
+            "default": [
+              {
+                "key": "value",
+                "label": "值",
+                "color": "#409eff"
+              }
+            ],
+            "x-ui": "json",
+            "items": {
+              "type": "object"
+            }
+          },
+          "nameKey": {
+            "type": "string",
+            "title": "名称字段",
+            "default": "name"
+          },
+          "height": {
+            "type": "number",
+            "title": "高度",
+            "default": 260,
+            "minimum": 100
+          },
+          "showLegend": {
+            "type": "boolean",
+            "title": "图例",
+            "default": true
+          },
+          "showGrid": {
+            "type": "boolean",
+            "title": "网格线",
+            "default": true
+          },
+          "barWidth": {
+            "type": "number",
+            "title": "柱宽",
+            "default": 24
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "pointClick"
+      ],
+      "slots": [],
+      "accept_children": []
+    },
+    {
+      "name": "wp-piechart",
+      "label": "饼图",
+      "type": "data",
+      "category": "data",
+      "version": "1.0.0",
+      "icon": "pie",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "nameKey": {
+            "type": "string",
+            "title": "名称字段",
+            "default": "name"
+          },
+          "valueKey": {
+            "type": "string",
+            "title": "数值字段",
+            "default": "value"
+          },
+          "height": {
+            "type": "number",
+            "title": "高度",
+            "default": 260,
+            "minimum": 100
+          },
+          "showLegend": {
+            "type": "boolean",
+            "title": "图例",
+            "default": true
+          },
+          "showPercent": {
+            "type": "boolean",
+            "title": "百分比",
+            "default": true
+          }
+        }
+      },
+      "default_props": {},
+      "events": [
+        "pointClick"
+      ],
+      "slots": [],
+      "accept_children": []
+    },
+    {
+      "name": "ElButton",
+      "label": "按钮",
+      "category": "basic",
+      "icon": "Pointer",
+      "props": {
+        "text": [
+          "string",
+          "文字",
+          "按钮"
+        ],
+        "type": [
+          "string",
+          "类型",
+          "primary",
+          {
+            "enum": [
+              "primary",
+              "success",
+              "warning",
+              "danger",
+              "info",
+              "default",
+              "text"
+            ],
+            "ui": "select",
+            "g": "外观"
+          }
+        ],
+        "size": [
+          "string",
+          "尺寸",
+          "default",
+          {
+            "enum": [
+              "large",
+              "default",
+              "small"
+            ],
+            "ui": "select",
+            "g": "外观"
+          }
+        ],
+        "plain": [
+          "boolean",
+          "朴素",
+          false,
+          {
+            "g": "外观"
+          }
+        ],
+        "round": [
+          "boolean",
+          "圆角",
+          false,
+          {
+            "g": "外观"
+          }
+        ],
+        "circle": [
+          "boolean",
+          "圆形",
+          false,
+          {
+            "g": "外观"
+          }
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false,
+          {
+            "g": "状态"
+          }
+        ],
+        "block": [
+          "boolean",
+          "块级",
+          false,
+          {
+            "g": "布局"
+          }
+        ],
+        "loading": [
+          "boolean",
+          "加载中",
+          false,
+          {
+            "g": "状态"
+          }
+        ]
+      },
+      "events": [
+        "click"
+      ]
+    },
+    {
+      "name": "ElLink",
+      "label": "链接",
+      "category": "basic",
+      "icon": "Link",
+      "props": {
+        "text": [
+          "string",
+          "文字",
+          "链接"
+        ],
+        "href": [
+          "string",
+          "地址",
+          "#"
+        ],
+        "target": [
+          "string",
+          "打开方式",
+          "_self",
+          {
+            "enum": [
+              "_self",
+              "_blank"
+            ],
+            "ui": "select"
+          }
+        ],
+        "type": [
+          "string",
+          "类型",
+          "primary",
+          {
+            "enum": [
+              "primary",
+              "success",
+              "warning",
+              "danger",
+              "info"
+            ],
+            "ui": "select",
+            "g": "外观"
+          }
+        ],
+        "underline": [
+          "boolean",
+          "下划线",
+          true,
+          {
+            "g": "外观"
+          }
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false,
+          {
+            "g": "状态"
+          }
+        ]
+      },
+      "events": [
+        "click"
+      ]
+    },
+    {
+      "name": "ElText",
+      "label": "文本",
+      "category": "basic",
+      "icon": "Document",
+      "props": {
+        "text": [
+          "string",
+          "内容",
+          "文本内容"
+        ],
+        "type": [
+          "string",
+          "类型",
+          "",
+          {
+            "enum": [
+              "",
+              "primary",
+              "success",
+              "warning",
+              "danger",
+              "info"
+            ],
+            "ui": "select"
+          }
+        ],
+        "size": [
+          "string",
+          "尺寸",
+          "default",
+          {
+            "enum": [
+              "large",
+              "default",
+              "small"
+            ],
+            "ui": "select"
+          }
+        ],
+        "truncated": [
+          "boolean",
+          "省略",
+          false
+        ],
+        "tag": [
+          "string",
+          "标签",
+          "span"
+        ]
+      }
+    },
+    {
+      "name": "ElTag",
+      "label": "标签",
+      "category": "basic",
+      "icon": "CollectionTag",
+      "props": {
+        "text": [
+          "string",
+          "文字",
+          "标签"
+        ],
+        "type": [
+          "string",
+          "类型",
+          "primary",
+          {
+            "enum": [
+              "primary",
+              "success",
+              "warning",
+              "danger",
+              "info"
+            ],
+            "ui": "select"
+          }
+        ],
+        "effect": [
+          "string",
+          "效果",
+          "light",
+          {
+            "enum": [
+              "dark",
+              "light",
+              "plain"
+            ],
+            "ui": "select"
+          }
+        ],
+        "size": [
+          "string",
+          "尺寸",
+          "default",
+          {
+            "enum": [
+              "large",
+              "default",
+              "small"
+            ],
+            "ui": "select"
+          }
+        ],
+        "round": [
+          "boolean",
+          "圆角",
+          false
+        ],
+        "closable": [
+          "boolean",
+          "可关闭",
+          false
+        ]
+      },
+      "events": [
+        "click",
+        "close"
+      ]
+    },
+    {
+      "name": "ElBadge",
+      "label": "徽标",
+      "category": "basic",
+      "icon": "Bell",
+      "props": {
+        "value": [
+          "number",
+          "数值",
+          0
+        ],
+        "max": [
+          "number",
+          "最大值",
+          99
+        ],
+        "isDot": [
+          "boolean",
+          "圆点",
+          false
+        ],
+        "hidden": [
+          "boolean",
+          "隐藏",
+          false
+        ],
+        "type": [
+          "string",
+          "类型",
+          "danger",
+          {
+            "enum": [
+              "primary",
+              "success",
+              "warning",
+              "danger",
+              "info"
+            ],
+            "ui": "select"
+          }
+        ]
+      },
+      "slots": [
+        "default"
+      ],
+      "container": true,
+      "accepts": [
+        "*"
+      ]
+    },
+    {
+      "name": "ElAvatar",
+      "label": "头像",
+      "category": "basic",
+      "icon": "User",
+      "props": {
+        "src": [
+          "string",
+          "图片地址",
+          ""
+        ],
+        "alt": [
+          "string",
+          "替代文字",
+          ""
+        ],
+        "size": [
+          "number",
+          "尺寸",
+          40
+        ],
+        "shape": [
+          "string",
+          "形状",
+          "circle",
+          {
+            "enum": [
+              "circle",
+              "square"
+            ],
+            "ui": "select"
+          }
+        ],
+        "fit": [
+          "string",
+          "填充",
+          "cover",
+          {
+            "enum": [
+              "fill",
+              "contain",
+              "cover",
+              "none",
+              "scale-down"
+            ],
+            "ui": "select"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ElIcon",
+      "label": "图标",
+      "category": "basic",
+      "icon": "Star",
+      "props": {
+        "name": [
+          "string",
+          "图标名",
+          "Star"
+        ],
+        "size": [
+          "number",
+          "尺寸",
+          18
+        ],
+        "color": [
+          "string",
+          "颜色",
+          "",
+          {
+            "ui": "color"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ElDivider",
+      "label": "分割线",
+      "category": "basic",
+      "icon": "Minus",
+      "props": {
+        "content": [
+          "string",
+          "文字",
+          ""
+        ],
+        "direction": [
+          "string",
+          "方向",
+          "horizontal",
+          {
+            "enum": [
+              "horizontal",
+              "vertical"
+            ],
+            "ui": "select"
+          }
+        ],
+        "borderStyle": [
+          "string",
+          "线型",
+          "solid",
+          {
+            "enum": [
+              "solid",
+              "dashed",
+              "dotted"
+            ],
+            "ui": "select"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ElImage",
+      "label": "图片",
+      "category": "basic",
+      "icon": "Picture",
+      "props": {
+        "src": [
+          "string",
+          "图片地址",
+          ""
+        ],
+        "alt": [
+          "string",
+          "替代文字",
+          ""
+        ],
+        "fit": [
+          "string",
+          "填充",
+          "cover",
+          {
+            "enum": [
+              "fill",
+              "contain",
+              "cover",
+              "none",
+              "scale-down"
+            ],
+            "ui": "select"
+          }
+        ],
+        "lazy": [
+          "boolean",
+          "懒加载",
+          false
+        ],
+        "preview": [
+          "boolean",
+          "预览",
+          true
+        ],
+        "width": [
+          "number",
+          "宽度",
+          240
+        ],
+        "height": [
+          "number",
+          "高度",
+          160
+        ]
+      }
+    },
+    {
+      "name": "ElCard",
+      "label": "卡片",
+      "category": "basic",
+      "icon": "Postcard",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "slots": [
+        "header",
+        "default",
+        "footer"
+      ],
+      "props": {
+        "title": [
+          "string",
+          "标题",
+          "卡片标题"
+        ],
+        "shadow": [
+          "string",
+          "阴影",
+          "always",
+          {
+            "enum": [
+              "always",
+              "never",
+              "hover"
+            ],
+            "ui": "select"
+          }
+        ],
+        "padding": [
+          "number",
+          "内边距",
+          16,
+          {
+            "minimum": 0
+          }
+        ],
+        "rounded": [
+          "boolean",
+          "圆角",
+          true
+        ]
+      }
+    },
+    {
+      "name": "ElContainer",
+      "label": "容器",
+      "category": "layout",
+      "icon": "Box",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "slots": [
+        "default"
+      ],
+      "props": {
+        "direction": [
+          "string",
+          "方向",
+          "horizontal",
+          {
+            "enum": [
+              "horizontal",
+              "vertical"
+            ],
+            "ui": "radio"
+          }
+        ],
+        "padding": [
+          "number",
+          "内边距",
+          0,
+          {
+            "minimum": 0
+          }
+        ],
+        "background": [
+          "string",
+          "背景",
+          "transparent",
+          {
+            "ui": "color"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ElHeader",
+      "label": "页头",
+      "category": "layout",
+      "icon": "Top",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "height": [
+          "string",
+          "高度",
+          "60px"
+        ]
+      }
+    },
+    {
+      "name": "ElAside",
+      "label": "侧栏",
+      "category": "layout",
+      "icon": "Fold",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "width": [
+          "string",
+          "宽度",
+          "200px"
+        ]
+      }
+    },
+    {
+      "name": "ElMain",
+      "label": "主体",
+      "category": "layout",
+      "icon": "FullScreen",
+      "container": true,
+      "accepts": [
+        "*"
+      ]
+    },
+    {
+      "name": "ElFooter",
+      "label": "页脚",
+      "category": "layout",
+      "icon": "Bottom",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "height": [
+          "string",
+          "高度",
+          "60px"
+        ]
+      }
+    },
+    {
+      "name": "ElRow",
+      "label": "行",
+      "category": "layout",
+      "icon": "Operation",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "gutter": [
+          "number",
+          "列间距",
+          0,
+          {
+            "minimum": 0
+          }
+        ],
+        "justify": [
+          "string",
+          "水平对齐",
+          "start",
+          {
+            "enum": [
+              "start",
+              "end",
+              "center",
+              "space-around",
+              "space-between",
+              "space-evenly"
+            ],
+            "ui": "select"
+          }
+        ],
+        "align": [
+          "string",
+          "垂直对齐",
+          "top",
+          {
+            "enum": [
+              "top",
+              "middle",
+              "bottom"
+            ],
+            "ui": "select"
+          }
+        ],
+        "tag": [
+          "string",
+          "标签",
+          "div"
+        ]
+      }
+    },
+    {
+      "name": "ElCol",
+      "label": "列",
+      "category": "layout",
+      "icon": "Menu",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "span": [
+          "number",
+          "栅格",
+          12,
+          {
+            "minimum": 1,
+            "maximum": 24
+          }
+        ],
+        "offset": [
+          "number",
+          "偏移",
+          0,
+          {
+            "minimum": 0,
+            "maximum": 24
+          }
+        ],
+        "push": [
+          "number",
+          "右移",
+          0
+        ],
+        "pull": [
+          "number",
+          "左移",
+          0
+        ],
+        "xs": [
+          "number",
+          "xs",
+          0
+        ],
+        "sm": [
+          "number",
+          "sm",
+          0
+        ],
+        "md": [
+          "number",
+          "md",
+          0
+        ],
+        "lg": [
+          "number",
+          "lg",
+          0
+        ],
+        "xl": [
+          "number",
+          "xl",
+          0
+        ]
+      }
+    },
+    {
+      "name": "ElSpace",
+      "label": "间距",
+      "category": "layout",
+      "icon": "Sort",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "size": [
+          "string",
+          "间距",
+          "default",
+          {
+            "enum": [
+              "small",
+              "default",
+              "large"
+            ],
+            "ui": "select"
+          }
+        ],
+        "direction": [
+          "string",
+          "方向",
+          "horizontal",
+          {
+            "enum": [
+              "horizontal",
+              "vertical"
+            ],
+            "ui": "radio"
+          }
+        ],
+        "wrap": [
+          "boolean",
+          "换行",
+          false
+        ],
+        "fill": [
+          "boolean",
+          "撑满",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElSplitter",
+      "label": "分割面板",
+      "category": "layout",
+      "icon": "ScaleToOriginal",
+      "container": true,
+      "accepts": [
+        "ElSplitterPanel"
+      ],
+      "props": {
+        "layout": [
+          "string",
+          "方向",
+          "horizontal",
+          {
+            "enum": [
+              "horizontal",
+              "vertical"
+            ],
+            "ui": "radio"
+          }
+        ],
+        "lazy": [
+          "boolean",
+          "惰性",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElSplitterPanel",
+      "label": "分割面板项",
+      "category": "layout",
+      "icon": "ScaleToOriginal",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "size": [
+          "string",
+          "尺寸",
+          ""
+        ],
+        "min": [
+          "string",
+          "最小",
+          ""
+        ],
+        "max": [
+          "string",
+          "最大",
+          ""
+        ],
+        "resizable": [
+          "boolean",
+          "可拖拽",
+          true
+        ],
+        "collapsible": [
+          "boolean",
+          "可折叠",
+          false
+        ]
+      }
+    },
+    {
+      "name": "div",
+      "label": "区块 div",
+      "category": "layout",
+      "source": "native",
+      "element": "div",
+      "icon": "Grid",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "text": [
+          "string",
+          "文字",
+          ""
+        ],
+        "padding": [
+          "number",
+          "内边距",
+          0
+        ],
+        "background": [
+          "string",
+          "背景",
+          "",
+          {
+            "ui": "color"
+          }
+        ],
+        "minHeight": [
+          "string",
+          "最小高度",
+          ""
+        ]
+      }
+    },
+    {
+      "name": "section",
+      "label": "区块 section",
+      "category": "layout",
+      "source": "native",
+      "element": "section",
+      "icon": "Files",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "padding": [
+          "number",
+          "内边距",
+          0
+        ],
+        "background": [
+          "string",
+          "背景",
+          "",
+          {
+            "ui": "color"
+          }
+        ]
+      }
+    },
+    {
+      "name": "flex-box",
+      "label": "Flex 容器",
+      "category": "layout",
+      "source": "native",
+      "element": "div",
+      "icon": "Rank",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "direction": [
+          "string",
+          "方向",
+          "row",
+          {
+            "enum": [
+              "row",
+              "row-reverse",
+              "column",
+              "column-reverse"
+            ],
+            "ui": "select"
+          }
+        ],
+        "gap": [
+          "number",
+          "间距",
+          8,
+          {
+            "minimum": 0
+          }
+        ],
+        "align": [
+          "string",
+          "交叉轴",
+          "stretch",
+          {
+            "enum": [
+              "stretch",
+              "flex-start",
+              "center",
+              "flex-end",
+              "baseline"
+            ],
+            "ui": "select"
+          }
+        ],
+        "justify": [
+          "string",
+          "主轴",
+          "flex-start",
+          {
+            "enum": [
+              "flex-start",
+              "center",
+              "flex-end",
+              "space-between",
+              "space-around",
+              "space-evenly"
+            ],
+            "ui": "select"
+          }
+        ],
+        "wrap": [
+          "string",
+          "换行",
+          "nowrap",
+          {
+            "enum": [
+              "nowrap",
+              "wrap",
+              "wrap-reverse"
+            ],
+            "ui": "select"
+          }
+        ],
+        "padding": [
+          "number",
+          "内边距",
+          0,
+          {
+            "minimum": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "grid-box",
+      "label": "Grid 容器",
+      "category": "layout",
+      "source": "native",
+      "element": "div",
+      "icon": "Grid",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "columns": [
+          "number",
+          "列数",
+          2,
+          {
+            "minimum": 1,
+            "maximum": 12
+          }
+        ],
+        "gap": [
+          "number",
+          "间距",
+          8,
+          {
+            "minimum": 0
+          }
+        ],
+        "rowGap": [
+          "number",
+          "行间距",
+          8,
+          {
+            "minimum": 0
+          }
+        ],
+        "padding": [
+          "number",
+          "内边距",
+          0,
+          {
+            "minimum": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "ElForm",
+      "label": "表单",
+      "category": "form",
+      "icon": "Document",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "labelWidth": [
+          "string",
+          "标签宽度",
+          "100px"
+        ],
+        "labelPosition": [
+          "string",
+          "标签位置",
+          "right",
+          {
+            "enum": [
+              "left",
+              "right",
+              "top"
+            ],
+            "ui": "radio"
+          }
+        ],
+        "inline": [
+          "boolean",
+          "行内表单",
+          false
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ],
+        "size": [
+          "string",
+          "尺寸",
+          "default",
+          {
+            "enum": [
+              "large",
+              "default",
+              "small"
+            ],
+            "ui": "select"
+          }
+        ],
+        "showMessage": [
+          "boolean",
+          "显示校验信息",
+          true
+        ]
+      },
+      "events": [
+        "submit",
+        "reset"
+      ]
+    },
+    {
+      "name": "auto-form",
+      "label": "数据模型表单",
+      "category": "form",
+      "icon": "EditPen",
+      "source": "custom",
+      "element": "AutoForm",
+      "props": {
+        "modelId": [
+          "number",
+          "数据模型 ID",
+          0,
+          {
+            "ui": "modelPicker",
+            "g": "数据"
+          }
+        ],
+        "fields": [
+          "array",
+          "字段定义",
+          [],
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "mode": [
+          "string",
+          "模式",
+          "create",
+          {
+            "enum": [
+              "create",
+              "edit"
+            ],
+            "ui": "select",
+            "g": "数据"
+          }
+        ],
+        "recordId": [
+          "string",
+          "记录 ID / 表达式",
+          "",
+          {
+            "g": "数据"
+          }
+        ],
+        "labelWidth": [
+          "string",
+          "标签宽度",
+          "100px"
+        ],
+        "labelPosition": [
+          "string",
+          "标签位置",
+          "right",
+          {
+            "enum": [
+              "left",
+              "right",
+              "top"
+            ],
+            "ui": "radio"
+          }
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ],
+        "submitText": [
+          "string",
+          "提交按钮",
+          "提交"
+        ],
+        "showReset": [
+          "boolean",
+          "显示重置",
+          true
+        ],
+        "successMessage": [
+          "string",
+          "成功提示",
+          "保存成功"
+        ],
+        "fieldColumns": [
+          "number",
+          "每行列数",
+          1,
+          {
+            "minimum": 1,
+            "maximum": 3
+          }
+        ],
+        "columns": [
+          "number",
+          "兼容列数",
+          0
+        ]
+      },
+      "events": [
+        "submit",
+        "saved",
+        "reset"
+      ]
+    },
+    {
+      "name": "ElFormItem",
+      "label": "表单项",
+      "category": "form",
+      "icon": "Document",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "label": [
+          "string",
+          "标签",
+          "字段"
+        ],
+        "prop": [
+          "string",
+          "字段名",
+          ""
+        ],
+        "required": [
+          "boolean",
+          "必填",
+          false
+        ],
+        "labelWidth": [
+          "string",
+          "标签宽度",
+          ""
+        ],
+        "error": [
+          "string",
+          "错误信息",
+          ""
+        ],
+        "showMessage": [
+          "boolean",
+          "显示校验信息",
+          true
+        ],
+        "rules": [
+          "array",
+          "校验规则",
+          [],
+          {
+            "ui": "json",
+            "g": "校验"
+          }
+        ]
+      }
+    },
+    {
+      "name": "content-list",
+      "label": "内容列表",
+      "category": "data",
+      "icon": "Document",
+      "source": "custom",
+      "element": "ContentList",
+      "props": {
+        "dataModelId": [
+          "number",
+          "内容模型 ID",
+          0,
+          {
+            "ui": "modelPicker",
+            "g": "内容"
+          }
+        ],
+        "mode": [
+          "string",
+          "布局",
+          "list",
+          {
+            "enum": [
+              "list",
+              "grid",
+              "compact",
+              "ranking"
+            ],
+            "ui": "select",
+            "g": "内容"
+          }
+        ],
+        "heading": [
+          "string",
+          "标题",
+          ""
+        ],
+        "categoryField": [
+          "string",
+          "分类字段",
+          "category"
+        ],
+        "category": [
+          "string",
+          "固定分类",
+          ""
+        ],
+        "categoryModelId": [
+          "number",
+          "分类模型 ID",
+          0,
+          {
+            "ui": "modelPicker",
+            "g": "内容"
+          }
+        ],
+        "categoryBasePath": [
+          "string",
+          "分类路由",
+          "news"
+        ],
+        "categoryLabelField": [
+          "string",
+          "分类名称字段",
+          "name"
+        ],
+        "categorySlugField": [
+          "string",
+          "分类 slug 字段",
+          "slug"
+        ],
+        "titleField": [
+          "string",
+          "标题字段",
+          "title"
+        ],
+        "summaryField": [
+          "string",
+          "摘要字段",
+          "summary"
+        ],
+        "coverField": [
+          "string",
+          "封面字段",
+          "cover"
+        ],
+        "dateField": [
+          "string",
+          "日期字段",
+          "published_at"
+        ],
+        "authorField": [
+          "string",
+          "作者字段",
+          "author"
+        ],
+        "tagsField": [
+          "string",
+          "标签字段",
+          "tags"
+        ],
+        "hrefPattern": [
+          "string",
+          "详情链接",
+          "article/{id}",
+          {
+            "g": "路由"
+          }
+        ],
+        "pageSize": [
+          "number",
+          "每页条数",
+          10
+        ],
+        "sort": [
+          "string",
+          "排序",
+          "-published_at"
+        ],
+        "filters": [
+          "object",
+          "固定筛选",
+          {},
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "showPagination": [
+          "boolean",
+          "显示分页",
+          true
+        ],
+        "showSearch": [
+          "boolean",
+          "显示搜索",
+          false
+        ],
+        "searchPlaceholder": [
+          "string",
+          "搜索占位",
+          "搜索内容…"
+        ],
+        "showCategoryTabs": [
+          "boolean",
+          "显示分类",
+          false
+        ],
+        "emptyText": [
+          "string",
+          "空文案",
+          "暂无内容"
+        ]
+      },
+      "events": []
+    },
+    {
+      "name": "article-detail",
+      "label": "文章详情",
+      "category": "advanced",
+      "icon": "Document",
+      "source": "custom",
+      "element": "ArticleDetail",
+      "props": {
+        "dataModelId": [
+          "number",
+          "内容模型 ID",
+          0,
+          {
+            "ui": "modelPicker",
+            "g": "内容"
+          }
+        ],
+        "lookup": [
+          "string",
+          "定位方式",
+          "slug",
+          {
+            "enum": [
+              "slug",
+              "id"
+            ],
+            "ui": "select",
+            "g": "内容"
+          }
+        ],
+        "slugField": [
+          "string",
+          "slug 字段",
+          "slug"
+        ],
+        "titleField": [
+          "string",
+          "标题字段",
+          "title"
+        ],
+        "summaryField": [
+          "string",
+          "摘要字段",
+          "summary"
+        ],
+        "contentField": [
+          "string",
+          "正文字段",
+          "content"
+        ],
+        "coverField": [
+          "string",
+          "封面字段",
+          "cover"
+        ],
+        "authorField": [
+          "string",
+          "作者字段",
+          "author"
+        ],
+        "dateField": [
+          "string",
+          "日期字段",
+          "published_at"
+        ],
+        "categoryField": [
+          "string",
+          "分类字段",
+          "category"
+        ],
+        "tagsField": [
+          "string",
+          "标签字段",
+          "tags"
+        ],
+        "categoryPathPrefix": [
+          "string",
+          "分类路由",
+          "news"
+        ],
+        "articlePath": [
+          "string",
+          "文章路由",
+          "article/{id}"
+        ],
+        "backPath": [
+          "string",
+          "返回路径",
+          "home"
+        ],
+        "showRelated": [
+          "boolean",
+          "相关阅读",
+          true
+        ],
+        "relatedLimit": [
+          "number",
+          "相关数量",
+          4
+        ],
+        "emptyText": [
+          "string",
+          "空文案",
+          "内容不存在"
+        ]
+      },
+      "events": []
+    },
+    {
+      "name": "site-nav",
+      "label": "站点导航",
+      "category": "nav",
+      "icon": "Compass",
+      "source": "custom",
+      "element": "SiteNav",
+      "props": {
+        "brand": [
+          "string",
+          "站点名",
+          "WebProcess"
+        ],
+        "logo": [
+          "string",
+          "Logo URL",
+          "",
+          {
+            "ui": "image"
+          }
+        ],
+        "links": [
+          "array",
+          "导航链接",
+          [
+            {
+              "label": "首页",
+              "path": "home"
+            },
+            {
+              "label": "资讯",
+              "path": "news/games"
+            }
+          ],
+          {
+            "ui": "json",
+            "g": "导航"
+          }
+        ],
+        "homePath": [
+          "string",
+          "首页路径",
+          "home"
+        ],
+        "sticky": [
+          "boolean",
+          "吸顶",
+          true
+        ],
+        "dark": [
+          "boolean",
+          "深色",
+          false
+        ],
+        "showSearch": [
+          "boolean",
+          "显示搜索",
+          true
+        ],
+        "searchPath": [
+          "string",
+          "搜索路径",
+          "search"
+        ],
+        "searchText": [
+          "string",
+          "搜索文案",
+          "搜索"
+        ]
+      },
+      "events": []
+    },
+    {
+      "name": "site-search",
+      "label": "站内搜索",
+      "category": "nav",
+      "icon": "Search",
+      "source": "custom",
+      "element": "SiteSearch",
+      "props": {
+        "heading": [
+          "string",
+          "标题",
+          "站内搜索"
+        ],
+        "description": [
+          "string",
+          "说明",
+          "搜索已发布的文章、资讯和专题内容。"
+        ],
+        "placeholder": [
+          "string",
+          "占位符",
+          "输入关键词，回车搜索…"
+        ],
+        "limit": [
+          "number",
+          "结果数量",
+          20
+        ]
+      },
+      "events": []
+    },
+    {
+      "name": "relation-table",
+      "label": "主子表明细",
+      "category": "data",
+      "icon": "Grid",
+      "source": "custom",
+      "element": "RelationTable",
+      "props": {
+        "modelId": [
+          "number",
+          "明细模型 ID",
+          0,
+          {
+            "ui": "modelPicker",
+            "g": "关系"
+          }
+        ],
+        "foreignKey": [
+          "string",
+          "外键字段",
+          "parent_id",
+          {
+            "g": "关系"
+          }
+        ],
+        "parentId": [
+          "string",
+          "主记录 ID",
+          "{{route.id}}",
+          {
+            "g": "关系"
+          }
+        ],
+        "columns": [
+          "array",
+          "列定义",
+          [],
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "title": [
+          "string",
+          "标题",
+          "明细"
+        ],
+        "addText": [
+          "string",
+          "新增按钮",
+          "新增明细"
+        ],
+        "editable": [
+          "boolean",
+          "可编辑",
+          true
+        ],
+        "allowAdd": [
+          "boolean",
+          "允许新增",
+          true
+        ],
+        "allowDelete": [
+          "boolean",
+          "允许删除",
+          true
+        ],
+        "pageSize": [
+          "number",
+          "每页条数",
+          100
+        ],
+        "height": [
+          "string",
+          "高度",
+          ""
+        ],
+        "maxHeight": [
+          "string",
+          "最大高度",
+          ""
+        ],
+        "showHeader": [
+          "boolean",
+          "显示表头",
+          true
+        ],
+        "stripe": [
+          "boolean",
+          "斑马纹",
+          false
+        ],
+        "border": [
+          "boolean",
+          "边框",
+          true
+        ],
+        "emptyText": [
+          "string",
+          "空文案",
+          "暂无明细"
+        ]
+      },
+      "events": [
+        "saved",
+        "cellAction"
+      ]
+    },
+    {
+      "name": "approval-panel",
+      "label": "审批面板",
+      "category": "advanced",
+      "icon": "Finished",
+      "source": "custom",
+      "element": "ApprovalPanel",
+      "props": {
+        "definitionId": [
+          "number",
+          "流程定义 ID",
+          0,
+          {
+            "g": "流程"
+          }
+        ],
+        "businessModelId": [
+          "number",
+          "业务模型 ID",
+          0,
+          {
+            "ui": "modelPicker",
+            "g": "流程"
+          }
+        ],
+        "businessRecordId": [
+          "string",
+          "业务记录 ID",
+          "{{route.id}}",
+          {
+            "g": "流程"
+          }
+        ],
+        "title": [
+          "string",
+          "标题",
+          "审批"
+        ]
+      },
+      "events": [
+        "started",
+        "changed"
+      ]
+    },
+    {
+      "name": "report-table",
+      "label": "聚合报表",
+      "category": "data",
+      "icon": "Histogram",
+      "source": "custom",
+      "element": "ReportTable",
+      "props": {
+        "dataModelId": [
+          "number",
+          "数据模型 ID",
+          0,
+          {
+            "ui": "modelPicker",
+            "g": "数据"
+          }
+        ],
+        "groupBy": [
+          "string",
+          "分组字段",
+          ""
+        ],
+        "groupLabel": [
+          "string",
+          "分组列名",
+          "分组"
+        ],
+        "metrics": [
+          "string",
+          "指标",
+          "count,sum:amount"
+        ],
+        "title": [
+          "string",
+          "标题",
+          "数据报表"
+        ],
+        "filters": [
+          "object",
+          "筛选条件",
+          {},
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "limit": [
+          "number",
+          "最大行数",
+          200
+        ],
+        "exportable": [
+          "boolean",
+          "可导出",
+          true
+        ],
+        "border": [
+          "boolean",
+          "边框",
+          false
+        ],
+        "stripe": [
+          "boolean",
+          "斑马纹",
+          true
+        ],
+        "showChart": [
+          "boolean",
+          "显示图表",
+          false
+        ],
+        "chartType": [
+          "string",
+          "图表类型",
+          "bar",
+          {
+            "enum": [
+              "bar",
+              "line",
+              "pie",
+              "doughnut"
+            ],
+            "ui": "select"
+          }
+        ],
+        "groupBy2": [
+          "string",
+          "第二分组字段",
+          ""
+        ],
+        "crossTab": [
+          "boolean",
+          "交叉表",
+          false
+        ]
+      },
+      "events": []
+    },
+    {
+      "name": "ElInput",
+      "label": "输入框",
+      "category": "form",
+      "icon": "EditPen",
+      "form": true,
+      "props": {
+        "field": [
+          "string",
+          "字段标识",
+          "field"
+        ],
+        "label": [
+          "string",
+          "标签",
+          ""
+        ],
+        "placeholder": [
+          "string",
+          "占位符",
+          "请输入"
+        ],
+        "type": [
+          "string",
+          "类型",
+          "text",
+          {
+            "enum": [
+              "text",
+              "textarea",
+              "password",
+              "number",
+              "email",
+              "url",
+              "search"
+            ],
+            "ui": "select"
+          }
+        ],
+        "clearable": [
+          "boolean",
+          "可清空",
+          true
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ],
+        "readonly": [
+          "boolean",
+          "只读",
+          false
+        ],
+        "maxlength": [
+          "number",
+          "最大长度",
+          100
+        ],
+        "showPassword": [
+          "boolean",
+          "显示密码",
+          false
+        ],
+        "prefixIcon": [
+          "string",
+          "前缀图标",
+          ""
+        ],
+        "suffixIcon": [
+          "string",
+          "后缀图标",
+          ""
+        ]
+      },
+      "events": [
+        "input",
+        "change",
+        "focus",
+        "blur",
+        "clear"
+      ]
+    },
+    {
+      "name": "ElInputNumber",
+      "label": "数字输入",
+      "category": "form",
+      "icon": "Sort",
+      "form": true,
+      "props": {
+        "field": [
+          "string",
+          "字段标识",
+          "field"
+        ],
+        "label": [
+          "string",
+          "标签",
+          ""
+        ],
+        "min": [
+          "number",
+          "最小值",
+          0
+        ],
+        "max": [
+          "number",
+          "最大值",
+          100
+        ],
+        "step": [
+          "number",
+          "步长",
+          1
+        ],
+        "precision": [
+          "number",
+          "精度",
+          0,
+          {
+            "minimum": 0
+          }
+        ],
+        "controlsPosition": [
+          "string",
+          "按钮位置",
+          "",
+          {
+            "enum": [
+              "",
+              "right"
+            ],
+            "ui": "select"
+          }
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElSelect",
+      "label": "选择器",
+      "category": "form",
+      "icon": "ArrowDown",
+      "form": true,
+      "props": {
+        "field": [
+          "string",
+          "字段标识",
+          "field"
+        ],
+        "label": [
+          "string",
+          "标签",
+          ""
+        ],
+        "options": [
+          "array",
+          "选项",
+          [
+            {
+              "label": "选项一",
+              "value": "1"
+            },
+            {
+              "label": "选项二",
+              "value": "2"
+            }
+          ],
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "placeholder": [
+          "string",
+          "占位符",
+          "请选择"
+        ],
+        "multiple": [
+          "boolean",
+          "多选",
+          false
+        ],
+        "clearable": [
+          "boolean",
+          "可清空",
+          true
+        ],
+        "filterable": [
+          "boolean",
+          "可搜索",
+          false
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElOption",
+      "label": "选项",
+      "category": "form",
+      "icon": "Select",
+      "props": {
+        "label": [
+          "string",
+          "标签",
+          "选项"
+        ],
+        "value": [
+          "string",
+          "值",
+          "1"
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElRadio",
+      "label": "单选框",
+      "category": "form",
+      "icon": "CircleCheck",
+      "props": {
+        "label": [
+          "string",
+          "文字",
+          "选项"
+        ],
+        "value": [
+          "string",
+          "值",
+          "1"
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElRadioGroup",
+      "label": "单选组",
+      "category": "form",
+      "icon": "CircleCheck",
+      "container": true,
+      "accepts": [
+        "ElRadio"
+      ],
+      "form": true,
+      "props": {
+        "field": [
+          "string",
+          "字段标识",
+          "field"
+        ],
+        "label": [
+          "string",
+          "标签",
+          ""
+        ],
+        "options": [
+          "array",
+          "选项",
+          [
+            {
+              "label": "选项一",
+              "value": "1"
+            },
+            {
+              "label": "选项二",
+              "value": "2"
+            }
+          ],
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElCheckbox",
+      "label": "复选框",
+      "category": "form",
+      "icon": "Select",
+      "props": {
+        "label": [
+          "string",
+          "文字",
+          "勾选"
+        ],
+        "value": [
+          "string",
+          "值",
+          "1"
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ],
+        "indeterminate": [
+          "boolean",
+          "半选",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElCheckboxGroup",
+      "label": "复选组",
+      "category": "form",
+      "icon": "Finished",
+      "container": true,
+      "accepts": [
+        "ElCheckbox"
+      ],
+      "form": true,
+      "props": {
+        "field": [
+          "string",
+          "字段标识",
+          "field"
+        ],
+        "label": [
+          "string",
+          "标签",
+          ""
+        ],
+        "options": [
+          "array",
+          "选项",
+          [
+            {
+              "label": "选项一",
+              "value": "1"
+            },
+            {
+              "label": "选项二",
+              "value": "2"
+            }
+          ],
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ],
+        "min": [
+          "number",
+          "最少选择",
+          0
+        ],
+        "max": [
+          "number",
+          "最多选择",
+          0
+        ]
+      }
+    },
+    {
+      "name": "ElSwitch",
+      "label": "开关",
+      "category": "form",
+      "icon": "Switch",
+      "form": true,
+      "props": {
+        "field": [
+          "string",
+          "字段标识",
+          "field"
+        ],
+        "label": [
+          "string",
+          "标签",
+          ""
+        ],
+        "activeText": [
+          "string",
+          "开启文字",
+          ""
+        ],
+        "inactiveText": [
+          "string",
+          "关闭文字",
+          ""
+        ],
+        "activeValue": [
+          "boolean",
+          "开启值",
+          true
+        ],
+        "inactiveValue": [
+          "boolean",
+          "关闭值",
+          false
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElSlider",
+      "label": "滑块",
+      "category": "form",
+      "icon": "Operation",
+      "form": true,
+      "props": {
+        "field": [
+          "string",
+          "字段标识",
+          "field"
+        ],
+        "label": [
+          "string",
+          "标签",
+          ""
+        ],
+        "min": [
+          "number",
+          "最小值",
+          0
+        ],
+        "max": [
+          "number",
+          "最大值",
+          100
+        ],
+        "step": [
+          "number",
+          "步长",
+          1
+        ],
+        "range": [
+          "boolean",
+          "范围",
+          false
+        ],
+        "showInput": [
+          "boolean",
+          "输入框",
+          false
+        ],
+        "showStops": [
+          "boolean",
+          "显示间断",
+          false
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElRate",
+      "label": "评分",
+      "category": "form",
+      "icon": "Star",
+      "form": true,
+      "props": {
+        "field": [
+          "string",
+          "字段标识",
+          "field"
+        ],
+        "label": [
+          "string",
+          "标签",
+          ""
+        ],
+        "max": [
+          "number",
+          "满分",
+          5
+        ],
+        "allowHalf": [
+          "boolean",
+          "半星",
+          false
+        ],
+        "showText": [
+          "boolean",
+          "显示文字",
+          false
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElColorPicker",
+      "label": "颜色选择",
+      "category": "form",
+      "icon": "Brush",
+      "form": true,
+      "props": {
+        "field": [
+          "string",
+          "字段标识",
+          "field"
+        ],
+        "label": [
+          "string",
+          "标签",
+          ""
+        ],
+        "showAlpha": [
+          "boolean",
+          "透明度",
+          false
+        ],
+        "colorFormat": [
+          "string",
+          "格式",
+          "hex",
+          {
+            "enum": [
+              "hex",
+              "rgb",
+              "hsl"
+            ],
+            "ui": "select"
+          }
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElDatePicker",
+      "label": "日期选择",
+      "category": "form",
+      "icon": "Calendar",
+      "form": true,
+      "props": {
+        "field": [
+          "string",
+          "字段标识",
+          "field"
+        ],
+        "label": [
+          "string",
+          "标签",
+          ""
+        ],
+        "type": [
+          "string",
+          "类型",
+          "date",
+          {
+            "enum": [
+              "date",
+              "datetime",
+              "daterange",
+              "datetimerange",
+              "month",
+              "year",
+              "week"
+            ],
+            "ui": "select"
+          }
+        ],
+        "placeholder": [
+          "string",
+          "占位符",
+          "选择日期"
+        ],
+        "format": [
+          "string",
+          "显示格式",
+          "YYYY-MM-DD"
+        ],
+        "valueFormat": [
+          "string",
+          "值格式",
+          "YYYY-MM-DD"
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElTimePicker",
+      "label": "时间选择",
+      "category": "form",
+      "icon": "Clock",
+      "form": true,
+      "props": {
+        "field": [
+          "string",
+          "字段标识",
+          "field"
+        ],
+        "label": [
+          "string",
+          "标签",
+          ""
+        ],
+        "isRange": [
+          "boolean",
+          "时间范围",
+          false
+        ],
+        "placeholder": [
+          "string",
+          "占位符",
+          "选择时间"
+        ],
+        "format": [
+          "string",
+          "显示格式",
+          "HH:mm:ss"
+        ],
+        "valueFormat": [
+          "string",
+          "值格式",
+          "HH:mm:ss"
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElTimeSelect",
+      "label": "时间下拉",
+      "category": "form",
+      "icon": "Timer",
+      "form": true,
+      "props": {
+        "field": [
+          "string",
+          "字段标识",
+          "field"
+        ],
+        "label": [
+          "string",
+          "标签",
+          ""
+        ],
+        "start": [
+          "string",
+          "开始",
+          "09:00"
+        ],
+        "end": [
+          "string",
+          "结束",
+          "18:00"
+        ],
+        "step": [
+          "string",
+          "步长",
+          "00:30"
+        ],
+        "placeholder": [
+          "string",
+          "占位符",
+          "选择时间"
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElCascader",
+      "label": "级联选择",
+      "category": "form",
+      "icon": "Share",
+      "form": true,
+      "props": {
+        "field": [
+          "string",
+          "字段标识",
+          "field"
+        ],
+        "label": [
+          "string",
+          "标签",
+          ""
+        ],
+        "options": [
+          "array",
+          "选项",
+          [
+            {
+              "value": "1",
+              "label": "选项一",
+              "children": [
+                {
+                  "value": "1-1",
+                  "label": "子选项"
+                }
+              ]
+            }
+          ],
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "placeholder": [
+          "string",
+          "占位符",
+          "请选择"
+        ],
+        "clearable": [
+          "boolean",
+          "可清空",
+          true
+        ],
+        "filterable": [
+          "boolean",
+          "可搜索",
+          false
+        ],
+        "props": [
+          "object",
+          "字段映射",
+          {
+            "value": "value",
+            "label": "label",
+            "children": "children"
+          },
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElTransfer",
+      "label": "穿梭框",
+      "category": "form",
+      "icon": "Switch",
+      "form": true,
+      "props": {
+        "field": [
+          "string",
+          "字段标识",
+          "field"
+        ],
+        "label": [
+          "string",
+          "标签",
+          ""
+        ],
+        "data": [
+          "array",
+          "数据",
+          [
+            {
+              "key": "1",
+              "label": "选项一"
+            },
+            {
+              "key": "2",
+              "label": "选项二"
+            }
+          ],
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "titles": [
+          "array",
+          "标题",
+          [
+            "列表 1",
+            "列表 2"
+          ],
+          {
+            "ui": "json"
+          }
+        ],
+        "filterable": [
+          "boolean",
+          "可搜索",
+          false
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElUpload",
+      "label": "上传",
+      "category": "form",
+      "icon": "Upload",
+      "form": true,
+      "props": {
+        "field": [
+          "string",
+          "字段标识",
+          "field"
+        ],
+        "label": [
+          "string",
+          "标签",
+          ""
+        ],
+        "action": [
+          "string",
+          "上传地址",
+          ""
+        ],
+        "multiple": [
+          "boolean",
+          "多选",
+          false
+        ],
+        "accept": [
+          "string",
+          "接受类型",
+          ""
+        ],
+        "limit": [
+          "number",
+          "数量限制",
+          0
+        ],
+        "listType": [
+          "string",
+          "列表类型",
+          "text",
+          {
+            "enum": [
+              "text",
+              "picture",
+              "picture-card"
+            ],
+            "ui": "select"
+          }
+        ],
+        "autoUpload": [
+          "boolean",
+          "自动上传",
+          true
+        ],
+        "drag": [
+          "boolean",
+          "拖拽上传",
+          false
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElAutocomplete",
+      "label": "自动补全",
+      "category": "form",
+      "icon": "MagicStick",
+      "form": true,
+      "props": {
+        "field": [
+          "string",
+          "字段标识",
+          "field"
+        ],
+        "label": [
+          "string",
+          "标签",
+          ""
+        ],
+        "placeholder": [
+          "string",
+          "占位符",
+          "请输入"
+        ],
+        "triggerOnFocus": [
+          "boolean",
+          "聚焦触发",
+          true
+        ],
+        "clearable": [
+          "boolean",
+          "可清空",
+          true
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElMention",
+      "label": "提及",
+      "category": "form",
+      "icon": "ChatDotRound",
+      "form": true,
+      "props": {
+        "field": [
+          "string",
+          "字段标识",
+          "field"
+        ],
+        "label": [
+          "string",
+          "标签",
+          ""
+        ],
+        "options": [
+          "array",
+          "候选",
+          [
+            {
+              "label": "张三",
+              "value": "zhangsan"
+            },
+            {
+              "label": "李四",
+              "value": "lisi"
+            }
+          ],
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "prefix": [
+          "string",
+          "触发符",
+          "@"
+        ],
+        "split": [
+          "string",
+          "分隔符",
+          " "
+        ],
+        "placeholder": [
+          "string",
+          "占位符",
+          "输入 @ 提及"
+        ]
+      }
+    },
+    {
+      "name": "ElSegmented",
+      "label": "分段控制器",
+      "category": "form",
+      "icon": "Menu",
+      "form": true,
+      "props": {
+        "field": [
+          "string",
+          "字段标识",
+          "field"
+        ],
+        "label": [
+          "string",
+          "标签",
+          ""
+        ],
+        "options": [
+          "array",
+          "选项",
+          [
+            {
+              "label": "选项一",
+              "value": "1"
+            },
+            {
+              "label": "选项二",
+              "value": "2"
+            }
+          ],
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "block": [
+          "boolean",
+          "撑满",
+          false
+        ],
+        "size": [
+          "string",
+          "尺寸",
+          "default",
+          {
+            "enum": [
+              "large",
+              "default",
+              "small"
+            ],
+            "ui": "select"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ElTreeSelect",
+      "label": "树选择",
+      "category": "form",
+      "icon": "Share",
+      "form": true,
+      "props": {
+        "field": [
+          "string",
+          "字段标识",
+          "field"
+        ],
+        "label": [
+          "string",
+          "标签",
+          ""
+        ],
+        "data": [
+          "array",
+          "数据",
+          [
+            {
+              "label": "节点一",
+              "value": "1",
+              "children": [
+                {
+                  "label": "子节点",
+                  "value": "1-1"
+                }
+              ]
+            }
+          ],
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "props": [
+          "object",
+          "字段映射",
+          {
+            "value": "value",
+            "label": "label",
+            "children": "children"
+          },
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "placeholder": [
+          "string",
+          "占位符",
+          "请选择"
+        ],
+        "multiple": [
+          "boolean",
+          "多选",
+          false
+        ],
+        "clearable": [
+          "boolean",
+          "可清空",
+          true
+        ],
+        "filterable": [
+          "boolean",
+          "可搜索",
+          false
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElTable",
+      "label": "数据表格",
+      "category": "data",
+      "icon": "Grid",
+      "container": true,
+      "accepts": [
+        "ElTableColumn"
+      ],
+      "props": {
+        "data": [
+          "array",
+          "数据",
+          [],
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "columns": [
+          "array",
+          "列定义",
+          [
+            {
+              "key": "name",
+              "label": "名称"
+            },
+            {
+              "key": "value",
+              "label": "值"
+            }
+          ],
+          {
+            "ui": "tableColumnsEditor",
+            "g": "数据"
+          }
+        ],
+        "dataModelId": [
+          "number",
+          "数据模型 ID",
+          0,
+          {
+            "ui": "modelPicker",
+            "g": "数据"
+          }
+        ],
+        "remote": [
+          "boolean",
+          "服务端分页",
+          false,
+          {
+            "g": "数据"
+          }
+        ],
+        "autoColumns": [
+          "boolean",
+          "自动生成列",
+          false,
+          {
+            "g": "数据"
+          }
+        ],
+        "pageSize": [
+          "number",
+          "每页条数",
+          10,
+          {
+            "minimum": 1
+          }
+        ],
+        "showPagination": [
+          "boolean",
+          "显示分页",
+          false
+        ],
+        "filters": [
+          "object",
+          "固定筛选",
+          {},
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "search": [
+          "string",
+          "搜索关键词",
+          ""
+        ],
+        "showSearch": [
+          "boolean",
+          "显示搜索框",
+          false
+        ],
+        "searchPlaceholder": [
+          "string",
+          "搜索占位",
+          "搜索关键字…"
+        ],
+        "exportable": [
+          "boolean",
+          "可导出 CSV",
+          false
+        ],
+        "exportName": [
+          "string",
+          "导出文件名",
+          "export.csv"
+        ],
+        "height": [
+          "string",
+          "高度",
+          ""
+        ],
+        "maxHeight": [
+          "string",
+          "最大高度",
+          ""
+        ],
+        "stripe": [
+          "boolean",
+          "斑马纹",
+          true
+        ],
+        "border": [
+          "boolean",
+          "边框",
+          true
+        ],
+        "size": [
+          "string",
+          "尺寸",
+          "default",
+          {
+            "enum": [
+              "large",
+              "default",
+              "small"
+            ],
+            "ui": "select"
+          }
+        ],
+        "showHeader": [
+          "boolean",
+          "显示表头",
+          true
+        ],
+        "emptyText": [
+          "string",
+          "空数据文案",
+          "暂无数据"
+        ],
+        "rowKey": [
+          "string",
+          "行主键",
+          ""
+        ],
+        "highlightCurrentRow": [
+          "boolean",
+          "高亮当前行",
+          false
+        ]
+      },
+      "events": [
+        "rowClick",
+        "selectionChange",
+        "sortChange",
+        "currentChange",
+        "rowEdit",
+        "rowDelete",
+        "rowView",
+        "rowAction",
+        "cellAction"
+      ]
+    },
+    {
+      "name": "ElTableColumn",
+      "label": "表格列",
+      "category": "data",
+      "icon": "Grid",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "slots": [
+        "default",
+        "header"
+      ],
+      "props": {
+        "prop": [
+          "string",
+          "字段",
+          "name"
+        ],
+        "label": [
+          "string",
+          "标题",
+          "列"
+        ],
+        "width": [
+          "number",
+          "宽度",
+          0
+        ],
+        "minWidth": [
+          "number",
+          "最小宽度",
+          0
+        ],
+        "fixed": [
+          "string",
+          "固定",
+          "",
+          {
+            "enum": [
+              "",
+              "left",
+              "right"
+            ],
+            "ui": "select"
+          }
+        ],
+        "sortable": [
+          "boolean",
+          "可排序",
+          false
+        ],
+        "showOverflowTooltip": [
+          "boolean",
+          "溢出提示",
+          true
+        ],
+        "align": [
+          "string",
+          "对齐",
+          "left",
+          {
+            "enum": [
+              "left",
+              "center",
+              "right"
+            ],
+            "ui": "select"
+          }
+        ],
+        "headerAlign": [
+          "string",
+          "表头对齐",
+          "",
+          {
+            "enum": [
+              "",
+              "left",
+              "center",
+              "right"
+            ],
+            "ui": "select"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ElPagination",
+      "label": "分页",
+      "category": "data",
+      "icon": "More",
+      "props": {
+        "currentPage": [
+          "number",
+          "当前页",
+          1,
+          {
+            "minimum": 1
+          }
+        ],
+        "pageSize": [
+          "number",
+          "每页条数",
+          10,
+          {
+            "minimum": 1
+          }
+        ],
+        "total": [
+          "number",
+          "总数",
+          0,
+          {
+            "minimum": 0
+          }
+        ],
+        "layout": [
+          "string",
+          "布局",
+          "prev, pager, next"
+        ],
+        "pageSizes": [
+          "array",
+          "每页选项",
+          [
+            10,
+            20,
+            50,
+            100
+          ],
+          {
+            "ui": "json"
+          }
+        ],
+        "background": [
+          "boolean",
+          "背景色",
+          false
+        ],
+        "small": [
+          "boolean",
+          "紧凑",
+          false
+        ]
+      },
+      "events": [
+        "currentChange",
+        "sizeChange"
+      ]
+    },
+    {
+      "name": "ElTree",
+      "label": "树",
+      "category": "data",
+      "icon": "Share",
+      "props": {
+        "data": [
+          "array",
+          "数据",
+          [
+            {
+              "label": "节点一",
+              "children": [
+                {
+                  "label": "子节点"
+                }
+              ]
+            }
+          ],
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "props": [
+          "object",
+          "字段映射",
+          {
+            "children": "children",
+            "label": "label"
+          },
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "nodeKey": [
+          "string",
+          "节点键",
+          ""
+        ],
+        "defaultExpandAll": [
+          "boolean",
+          "默认展开",
+          false
+        ],
+        "showCheckbox": [
+          "boolean",
+          "显示复选框",
+          false
+        ],
+        "checkStrictly": [
+          "boolean",
+          "严格模式",
+          false
+        ],
+        "expandOnClickNode": [
+          "boolean",
+          "点击展开",
+          true
+        ]
+      },
+      "events": [
+        "nodeClick",
+        "checkChange"
+      ]
+    },
+    {
+      "name": "ElTimeline",
+      "label": "时间线",
+      "category": "data",
+      "icon": "Clock",
+      "container": true,
+      "accepts": [
+        "ElTimelineItem"
+      ],
+      "props": {
+        "reverse": [
+          "boolean",
+          "倒序",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElTimelineItem",
+      "label": "时间线项",
+      "category": "data",
+      "icon": "Clock",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "timestamp": [
+          "string",
+          "时间",
+          ""
+        ],
+        "type": [
+          "string",
+          "类型",
+          "",
+          {
+            "enum": [
+              "",
+              "primary",
+              "success",
+              "warning",
+              "danger",
+              "info"
+            ],
+            "ui": "select"
+          }
+        ],
+        "color": [
+          "string",
+          "颜色",
+          "",
+          {
+            "ui": "color"
+          }
+        ],
+        "hollow": [
+          "boolean",
+          "空心",
+          false
+        ],
+        "size": [
+          "string",
+          "尺寸",
+          "normal",
+          {
+            "enum": [
+              "normal",
+              "large"
+            ],
+            "ui": "select"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ElDescriptions",
+      "label": "描述列表",
+      "category": "data",
+      "icon": "Document",
+      "container": true,
+      "accepts": [
+        "ElDescriptionsItem"
+      ],
+      "props": {
+        "title": [
+          "string",
+          "标题",
+          ""
+        ],
+        "column": [
+          "number",
+          "列数",
+          3,
+          {
+            "minimum": 1
+          }
+        ],
+        "border": [
+          "boolean",
+          "边框",
+          false
+        ],
+        "direction": [
+          "string",
+          "方向",
+          "horizontal",
+          {
+            "enum": [
+              "horizontal",
+              "vertical"
+            ],
+            "ui": "radio"
+          }
+        ],
+        "size": [
+          "string",
+          "尺寸",
+          "default",
+          {
+            "enum": [
+              "large",
+              "default",
+              "small"
+            ],
+            "ui": "select"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ElDescriptionsItem",
+      "label": "描述项",
+      "category": "data",
+      "icon": "Document",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "label": [
+          "string",
+          "标签",
+          "标签"
+        ],
+        "span": [
+          "number",
+          "跨列",
+          1,
+          {
+            "minimum": 1
+          }
+        ],
+        "width": [
+          "string",
+          "宽度",
+          ""
+        ],
+        "align": [
+          "string",
+          "对齐",
+          "left",
+          {
+            "enum": [
+              "left",
+              "center",
+              "right"
+            ],
+            "ui": "select"
+          }
+        ],
+        "labelAlign": [
+          "string",
+          "标签对齐",
+          "",
+          {
+            "enum": [
+              "",
+              "left",
+              "center",
+              "right"
+            ],
+            "ui": "select"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ElStatistic",
+      "label": "统计数值",
+      "category": "data",
+      "icon": "DataLine",
+      "props": {
+        "title": [
+          "string",
+          "标题",
+          "统计"
+        ],
+        "value": [
+          "number",
+          "数值",
+          0
+        ],
+        "precision": [
+          "number",
+          "精度",
+          0,
+          {
+            "minimum": 0
+          }
+        ],
+        "prefix": [
+          "string",
+          "前缀",
+          ""
+        ],
+        "suffix": [
+          "string",
+          "后缀",
+          ""
+        ],
+        "valueStyle": [
+          "object",
+          "数值样式",
+          {},
+          {
+            "ui": "json"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ElCountTo",
+      "label": "数字滚动",
+      "category": "data",
+      "icon": "Odometer",
+      "props": {
+        "startVal": [
+          "number",
+          "起始值",
+          0
+        ],
+        "endVal": [
+          "number",
+          "结束值",
+          100
+        ],
+        "duration": [
+          "number",
+          "时长(ms)",
+          2000
+        ],
+        "decimals": [
+          "number",
+          "小数位",
+          0,
+          {
+            "minimum": 0
+          }
+        ],
+        "prefix": [
+          "string",
+          "前缀",
+          ""
+        ],
+        "suffix": [
+          "string",
+          "后缀",
+          ""
+        ],
+        "separator": [
+          "string",
+          "分隔符",
+          ","
+        ],
+        "autoplay": [
+          "boolean",
+          "自动播放",
+          true
+        ]
+      }
+    },
+    {
+      "name": "ElProgress",
+      "label": "进度条",
+      "category": "data",
+      "icon": "Odometer",
+      "props": {
+        "percentage": [
+          "number",
+          "百分比",
+          50,
+          {
+            "minimum": 0,
+            "maximum": 100
+          }
+        ],
+        "type": [
+          "string",
+          "类型",
+          "line",
+          {
+            "enum": [
+              "line",
+              "circle",
+              "dashboard"
+            ],
+            "ui": "select"
+          }
+        ],
+        "strokeWidth": [
+          "number",
+          "线宽",
+          6,
+          {
+            "minimum": 1
+          }
+        ],
+        "textInside": [
+          "boolean",
+          "内显文字",
+          false
+        ],
+        "status": [
+          "string",
+          "状态",
+          "",
+          {
+            "enum": [
+              "",
+              "success",
+              "warning",
+              "exception"
+            ],
+            "ui": "select"
+          }
+        ],
+        "color": [
+          "string",
+          "颜色",
+          "",
+          {
+            "ui": "color"
+          }
+        ],
+        "showText": [
+          "boolean",
+          "显示文字",
+          true
+        ]
+      }
+    },
+    {
+      "name": "ElSkeleton",
+      "label": "骨架屏",
+      "category": "data",
+      "icon": "Loading",
+      "props": {
+        "rows": [
+          "number",
+          "行数",
+          3,
+          {
+            "minimum": 1
+          }
+        ],
+        "animated": [
+          "boolean",
+          "动画",
+          false
+        ],
+        "loading": [
+          "boolean",
+          "加载中",
+          true
+        ],
+        "throttle": [
+          "number",
+          "节流(ms)",
+          0
+        ]
+      }
+    },
+    {
+      "name": "ElEmpty",
+      "label": "空状态",
+      "category": "data",
+      "icon": "Box",
+      "props": {
+        "description": [
+          "string",
+          "描述",
+          "暂无数据"
+        ],
+        "imageSize": [
+          "number",
+          "图片尺寸",
+          160
+        ]
+      }
+    },
+    {
+      "name": "ElResult",
+      "label": "结果页",
+      "category": "data",
+      "icon": "CircleCheck",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "title": [
+          "string",
+          "标题",
+          "操作成功"
+        ],
+        "subTitle": [
+          "string",
+          "副标题",
+          ""
+        ],
+        "icon": [
+          "string",
+          "图标",
+          "success",
+          {
+            "enum": [
+              "success",
+              "warning",
+              "info",
+              "error"
+            ],
+            "ui": "select"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ElTabs",
+      "label": "标签页",
+      "category": "data",
+      "icon": "Files",
+      "container": true,
+      "accepts": [
+        "ElTabPane"
+      ],
+      "props": {
+        "modelValue": [
+          "string",
+          "当前标签",
+          ""
+        ],
+        "type": [
+          "string",
+          "风格",
+          "",
+          {
+            "enum": [
+              "",
+              "card",
+              "border-card"
+            ],
+            "ui": "select"
+          }
+        ],
+        "tabPosition": [
+          "string",
+          "位置",
+          "top",
+          {
+            "enum": [
+              "top",
+              "right",
+              "bottom",
+              "left"
+            ],
+            "ui": "select"
+          }
+        ],
+        "stretch": [
+          "boolean",
+          "撑满",
+          false
+        ],
+        "closable": [
+          "boolean",
+          "可关闭",
+          false
+        ],
+        "editable": [
+          "boolean",
+          "可编辑",
+          false
+        ]
+      },
+      "events": [
+        "tabClick",
+        "tabChange"
+      ]
+    },
+    {
+      "name": "ElTabPane",
+      "label": "标签页项",
+      "category": "data",
+      "icon": "Document",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "label": [
+          "string",
+          "标签",
+          "标签页"
+        ],
+        "name": [
+          "string",
+          "标识",
+          ""
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ],
+        "closable": [
+          "boolean",
+          "可关闭",
+          false
+        ],
+        "lazy": [
+          "boolean",
+          "惰性",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElCollapse",
+      "label": "折叠面板",
+      "category": "data",
+      "icon": "Fold",
+      "container": true,
+      "accepts": [
+        "ElCollapseItem"
+      ],
+      "props": {
+        "modelValue": [
+          "array",
+          "当前项",
+          [],
+          {
+            "ui": "json"
+          }
+        ],
+        "accordion": [
+          "boolean",
+          "手风琴",
+          false
+        ]
+      },
+      "events": [
+        "change"
+      ]
+    },
+    {
+      "name": "ElCollapseItem",
+      "label": "折叠项",
+      "category": "data",
+      "icon": "Fold",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "title": [
+          "string",
+          "标题",
+          "折叠项"
+        ],
+        "name": [
+          "string",
+          "标识",
+          ""
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElCarousel",
+      "label": "走马灯",
+      "category": "data",
+      "icon": "Picture",
+      "container": true,
+      "accepts": [
+        "ElCarouselItem"
+      ],
+      "props": {
+        "height": [
+          "string",
+          "高度",
+          "300px"
+        ],
+        "initialIndex": [
+          "number",
+          "初始索引",
+          0
+        ],
+        "autoplay": [
+          "boolean",
+          "自动播放",
+          true
+        ],
+        "interval": [
+          "number",
+          "间隔(ms)",
+          3000
+        ],
+        "indicatorPosition": [
+          "string",
+          "指示器位置",
+          "",
+          {
+            "enum": [
+              "",
+              "outside",
+              "none"
+            ],
+            "ui": "select"
+          }
+        ],
+        "arrow": [
+          "string",
+          "箭头",
+          "hover",
+          {
+            "enum": [
+              "always",
+              "hover",
+              "never"
+            ],
+            "ui": "select"
+          }
+        ],
+        "type": [
+          "string",
+          "类型",
+          "",
+          {
+            "enum": [
+              "",
+              "card"
+            ],
+            "ui": "select"
+          }
+        ],
+        "loop": [
+          "boolean",
+          "循环",
+          true
+        ]
+      }
+    },
+    {
+      "name": "ElCarouselItem",
+      "label": "走马灯项",
+      "category": "data",
+      "icon": "Picture",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "name": [
+          "string",
+          "标识",
+          ""
+        ],
+        "label": [
+          "string",
+          "标签",
+          ""
+        ]
+      }
+    },
+    {
+      "name": "ElCalendar",
+      "label": "日历",
+      "category": "data",
+      "icon": "Calendar",
+      "props": {
+        "modelValue": [
+          "string",
+          "日期",
+          ""
+        ],
+        "range": [
+          "array",
+          "范围",
+          [],
+          {
+            "ui": "json"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ElScrollbar",
+      "label": "滚动条",
+      "category": "data",
+      "icon": "Sort",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "height": [
+          "string",
+          "高度",
+          ""
+        ],
+        "maxHeight": [
+          "string",
+          "最大高度",
+          ""
+        ],
+        "native": [
+          "boolean",
+          "原生",
+          false
+        ],
+        "wrapStyle": [
+          "object",
+          "容器样式",
+          {},
+          {
+            "ui": "json"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ElWatermark",
+      "label": "水印",
+      "category": "data",
+      "icon": "Stamp",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "content": [
+          "string",
+          "水印文字",
+          "WebProcess"
+        ],
+        "image": [
+          "string",
+          "水印图片",
+          ""
+        ],
+        "width": [
+          "number",
+          "宽度",
+          120
+        ],
+        "height": [
+          "number",
+          "高度",
+          64
+        ],
+        "rotate": [
+          "number",
+          "旋转",
+          -22
+        ],
+        "zIndex": [
+          "number",
+          "层级",
+          9
+        ],
+        "font": [
+          "object",
+          "字体",
+          {
+            "color": "rgba(0,0,0,.15)",
+            "fontSize": "14px"
+          },
+          {
+            "ui": "json"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ElTour",
+      "label": "漫游式引导",
+      "category": "data",
+      "icon": "Compass",
+      "container": true,
+      "accepts": [
+        "ElTourStep"
+      ],
+      "props": {
+        "modelValue": [
+          "boolean",
+          "显示",
+          false
+        ],
+        "current": [
+          "number",
+          "当前步骤",
+          0
+        ],
+        "showArrow": [
+          "boolean",
+          "箭头",
+          true
+        ],
+        "showClose": [
+          "boolean",
+          "关闭按钮",
+          true
+        ],
+        "mask": [
+          "boolean",
+          "遮罩",
+          true
+        ],
+        "placement": [
+          "string",
+          "位置",
+          "bottom",
+          {
+            "enum": [
+              "top",
+              "bottom",
+              "left",
+              "right"
+            ],
+            "ui": "select"
+          }
+        ]
+      },
+      "events": [
+        "change",
+        "finish",
+        "close"
+      ]
+    },
+    {
+      "name": "ElTourStep",
+      "label": "引导步骤",
+      "category": "data",
+      "icon": "Compass",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "title": [
+          "string",
+          "标题",
+          "步骤"
+        ],
+        "description": [
+          "string",
+          "描述",
+          ""
+        ],
+        "target": [
+          "string",
+          "目标选择器",
+          ""
+        ],
+        "placement": [
+          "string",
+          "位置",
+          "bottom",
+          {
+            "enum": [
+              "top",
+              "bottom",
+              "left",
+              "right"
+            ],
+            "ui": "select"
+          }
+        ],
+        "showClose": [
+          "boolean",
+          "关闭按钮",
+          true
+        ]
+      }
+    },
+    {
+      "name": "ElAlert",
+      "label": "警告提示",
+      "category": "feedback",
+      "icon": "Warning",
+      "props": {
+        "title": [
+          "string",
+          "标题",
+          "提示"
+        ],
+        "description": [
+          "string",
+          "内容",
+          "这是一条提示信息"
+        ],
+        "type": [
+          "string",
+          "类型",
+          "info",
+          {
+            "enum": [
+              "success",
+              "info",
+              "warning",
+              "error"
+            ],
+            "ui": "select"
+          }
+        ],
+        "effect": [
+          "string",
+          "效果",
+          "light",
+          {
+            "enum": [
+              "light",
+              "dark"
+            ],
+            "ui": "select"
+          }
+        ],
+        "closable": [
+          "boolean",
+          "可关闭",
+          true
+        ],
+        "showIcon": [
+          "boolean",
+          "显示图标",
+          true
+        ],
+        "center": [
+          "boolean",
+          "居中",
+          false
+        ]
+      },
+      "events": [
+        "close"
+      ]
+    },
+    {
+      "name": "ElDialog",
+      "label": "对话框",
+      "category": "feedback",
+      "icon": "ChatDotRound",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "slots": [
+        "default",
+        "header",
+        "footer"
+      ],
+      "props": {
+        "title": [
+          "string",
+          "标题",
+          "对话框"
+        ],
+        "visible": [
+          "boolean",
+          "默认显示",
+          false
+        ],
+        "width": [
+          "string",
+          "宽度",
+          "520px"
+        ],
+        "showClose": [
+          "boolean",
+          "关闭按钮",
+          true
+        ],
+        "closeOnClickModal": [
+          "boolean",
+          "点遮罩关闭",
+          true
+        ],
+        "closeOnPressEscape": [
+          "boolean",
+          "ESC 关闭",
+          true
+        ],
+        "draggable": [
+          "boolean",
+          "可拖拽",
+          false
+        ],
+        "fullscreen": [
+          "boolean",
+          "全屏",
+          false
+        ],
+        "appendToBody": [
+          "boolean",
+          "挂载到 body",
+          true
+        ]
+      },
+      "events": [
+        "open",
+        "close"
+      ]
+    },
+    {
+      "name": "ElDrawer",
+      "label": "抽屉",
+      "category": "feedback",
+      "icon": "Fold",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "slots": [
+        "default",
+        "header",
+        "footer"
+      ],
+      "props": {
+        "title": [
+          "string",
+          "标题",
+          "抽屉"
+        ],
+        "visible": [
+          "boolean",
+          "默认显示",
+          false
+        ],
+        "size": [
+          "string",
+          "尺寸",
+          "30%"
+        ],
+        "direction": [
+          "string",
+          "方向",
+          "rtl",
+          {
+            "enum": [
+              "rtl",
+              "ltr",
+              "ttb",
+              "btt"
+            ],
+            "ui": "select"
+          }
+        ],
+        "showClose": [
+          "boolean",
+          "关闭按钮",
+          true
+        ],
+        "closeOnClickModal": [
+          "boolean",
+          "点遮罩关闭",
+          true
+        ],
+        "closeOnPressEscape": [
+          "boolean",
+          "ESC 关闭",
+          true
+        ],
+        "withHeader": [
+          "boolean",
+          "显示头部",
+          true
+        ]
+      },
+      "events": [
+        "open",
+        "close"
+      ]
+    },
+    {
+      "name": "ElPopover",
+      "label": "弹出框",
+      "category": "feedback",
+      "icon": "ChatDotRound",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "slots": [
+        "default",
+        "reference"
+      ],
+      "props": {
+        "title": [
+          "string",
+          "标题",
+          ""
+        ],
+        "content": [
+          "string",
+          "内容",
+          ""
+        ],
+        "placement": [
+          "string",
+          "位置",
+          "bottom",
+          {
+            "enum": [
+              "top",
+              "top-start",
+              "top-end",
+              "bottom",
+              "bottom-start",
+              "bottom-end",
+              "left",
+              "right"
+            ],
+            "ui": "select"
+          }
+        ],
+        "trigger": [
+          "string",
+          "触发",
+          "hover",
+          {
+            "enum": [
+              "hover",
+              "click",
+              "focus",
+              "contextmenu"
+            ],
+            "ui": "select"
+          }
+        ],
+        "width": [
+          "number",
+          "宽度",
+          150
+        ],
+        "visible": [
+          "boolean",
+          "显示",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElTooltip",
+      "label": "文字提示",
+      "category": "feedback",
+      "icon": "InfoFilled",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "slots": [
+        "default"
+      ],
+      "props": {
+        "content": [
+          "string",
+          "内容",
+          "提示文字"
+        ],
+        "placement": [
+          "string",
+          "位置",
+          "bottom",
+          {
+            "enum": [
+              "top",
+              "bottom",
+              "left",
+              "right"
+            ],
+            "ui": "select"
+          }
+        ],
+        "effect": [
+          "string",
+          "效果",
+          "dark",
+          {
+            "enum": [
+              "dark",
+              "light"
+            ],
+            "ui": "select"
+          }
+        ],
+        "trigger": [
+          "string",
+          "触发",
+          "hover",
+          {
+            "enum": [
+              "hover",
+              "click",
+              "focus",
+              "contextmenu"
+            ],
+            "ui": "select"
+          }
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElPopconfirm",
+      "label": "气泡确认",
+      "category": "feedback",
+      "icon": "QuestionFilled",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "slots": [
+        "default",
+        "reference"
+      ],
+      "props": {
+        "title": [
+          "string",
+          "标题",
+          "确认操作？"
+        ],
+        "confirmButtonText": [
+          "string",
+          "确认文字",
+          "确定"
+        ],
+        "cancelButtonText": [
+          "string",
+          "取消文字",
+          "取消"
+        ],
+        "placement": [
+          "string",
+          "位置",
+          "top",
+          {
+            "enum": [
+              "top",
+              "bottom",
+              "left",
+              "right"
+            ],
+            "ui": "select"
+          }
+        ],
+        "width": [
+          "number",
+          "宽度",
+          160
+        ]
+      },
+      "events": [
+        "confirm",
+        "cancel"
+      ]
+    },
+    {
+      "name": "ElLoading",
+      "label": "加载遮罩",
+      "category": "feedback",
+      "icon": "Loading",
+      "source": "custom",
+      "element": "LoadingOverlay",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "loading": [
+          "boolean",
+          "加载中",
+          true
+        ],
+        "text": [
+          "string",
+          "文字",
+          "加载中…"
+        ],
+        "fullscreen": [
+          "boolean",
+          "全屏",
+          false
+        ],
+        "background": [
+          "string",
+          "背景",
+          "rgba(255,255,255,.75)",
+          {
+            "ui": "color"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ElMenu",
+      "label": "菜单",
+      "category": "nav",
+      "icon": "Menu",
+      "container": true,
+      "accepts": [
+        "ElMenuItem",
+        "ElSubMenu"
+      ],
+      "props": {
+        "mode": [
+          "string",
+          "模式",
+          "horizontal",
+          {
+            "enum": [
+              "horizontal",
+              "vertical"
+            ],
+            "ui": "radio"
+          }
+        ],
+        "collapse": [
+          "boolean",
+          "折叠",
+          false
+        ],
+        "defaultActive": [
+          "string",
+          "默认激活",
+          ""
+        ],
+        "uniqueOpened": [
+          "boolean",
+          "唯一展开",
+          false
+        ],
+        "router": [
+          "boolean",
+          "路由模式",
+          false
+        ],
+        "backgroundColor": [
+          "string",
+          "背景色",
+          "",
+          {
+            "ui": "color"
+          }
+        ],
+        "textColor": [
+          "string",
+          "文字色",
+          "",
+          {
+            "ui": "color"
+          }
+        ],
+        "activeTextColor": [
+          "string",
+          "激活色",
+          "",
+          {
+            "ui": "color"
+          }
+        ]
+      },
+      "events": [
+        "select",
+        "open",
+        "close"
+      ]
+    },
+    {
+      "name": "ElMenuItem",
+      "label": "菜单项",
+      "category": "nav",
+      "icon": "Menu",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "index": [
+          "string",
+          "索引",
+          "1"
+        ],
+        "route": [
+          "object",
+          "路由",
+          {},
+          {
+            "ui": "json"
+          }
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElSubMenu",
+      "label": "子菜单",
+      "category": "nav",
+      "icon": "Menu",
+      "container": true,
+      "accepts": [
+        "ElMenuItem",
+        "ElSubMenu"
+      ],
+      "slots": [
+        "default",
+        "title"
+      ],
+      "props": {
+        "index": [
+          "string",
+          "索引",
+          "sub1"
+        ],
+        "popperClass": [
+          "string",
+          "弹出类名",
+          ""
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElBreadcrumb",
+      "label": "面包屑",
+      "category": "nav",
+      "icon": "Guide",
+      "container": true,
+      "accepts": [
+        "ElBreadcrumbItem"
+      ],
+      "props": {
+        "separator": [
+          "string",
+          "分隔符",
+          "/"
+        ],
+        "separatorIcon": [
+          "string",
+          "分隔图标",
+          ""
+        ]
+      }
+    },
+    {
+      "name": "ElBreadcrumbItem",
+      "label": "面包屑项",
+      "category": "nav",
+      "icon": "Guide",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "to": [
+          "string",
+          "跳转地址",
+          ""
+        ],
+        "replace": [
+          "boolean",
+          "替换历史",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElDropdown",
+      "label": "下拉菜单",
+      "category": "nav",
+      "icon": "ArrowDown",
+      "container": true,
+      "accepts": [
+        "ElDropdownMenu"
+      ],
+      "slots": [
+        "default",
+        "dropdown"
+      ],
+      "props": {
+        "trigger": [
+          "string",
+          "触发",
+          "hover",
+          {
+            "enum": [
+              "hover",
+              "click",
+              "contextmenu"
+            ],
+            "ui": "select"
+          }
+        ],
+        "placement": [
+          "string",
+          "位置",
+          "bottom",
+          {
+            "enum": [
+              "top",
+              "bottom",
+              "left",
+              "right"
+            ],
+            "ui": "select"
+          }
+        ],
+        "splitButton": [
+          "boolean",
+          "分裂按钮",
+          false
+        ],
+        "hideOnClick": [
+          "boolean",
+          "点击隐藏",
+          true
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      },
+      "events": [
+        "command",
+        "visibleChange"
+      ]
+    },
+    {
+      "name": "ElDropdownMenu",
+      "label": "下拉菜单列表",
+      "category": "nav",
+      "icon": "Menu",
+      "container": true,
+      "accepts": [
+        "ElDropdownItem"
+      ]
+    },
+    {
+      "name": "ElDropdownItem",
+      "label": "下拉菜单项",
+      "category": "nav",
+      "icon": "Menu",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "command": [
+          "string",
+          "命令",
+          ""
+        ],
+        "divided": [
+          "boolean",
+          "分割线",
+          false
+        ],
+        "disabled": [
+          "boolean",
+          "禁用",
+          false
+        ]
+      }
+    },
+    {
+      "name": "ElSteps",
+      "label": "步骤条",
+      "category": "nav",
+      "icon": "Guide",
+      "container": true,
+      "accepts": [
+        "ElStep"
+      ],
+      "props": {
+        "active": [
+          "number",
+          "当前步骤",
+          0
+        ],
+        "processStatus": [
+          "string",
+          "进行中状态",
+          "process",
+          {
+            "enum": [
+              "wait",
+              "process",
+              "finish",
+              "error",
+              "success"
+            ],
+            "ui": "select"
+          }
+        ],
+        "finishStatus": [
+          "string",
+          "完成状态",
+          "finish",
+          {
+            "enum": [
+              "wait",
+              "process",
+              "finish",
+              "error",
+              "success"
+            ],
+            "ui": "select"
+          }
+        ],
+        "simple": [
+          "boolean",
+          "简洁",
+          false
+        ],
+        "direction": [
+          "string",
+          "方向",
+          "horizontal",
+          {
+            "enum": [
+              "horizontal",
+              "vertical"
+            ],
+            "ui": "radio"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ElStep",
+      "label": "步骤",
+      "category": "nav",
+      "icon": "Guide",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "title": [
+          "string",
+          "标题",
+          "步骤"
+        ],
+        "description": [
+          "string",
+          "描述",
+          ""
+        ],
+        "icon": [
+          "string",
+          "图标",
+          ""
+        ],
+        "status": [
+          "string",
+          "状态",
+          "",
+          {
+            "enum": [
+              "",
+              "wait",
+              "process",
+              "finish",
+              "error",
+              "success"
+            ],
+            "ui": "select"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ElPageHeader",
+      "label": "页头",
+      "category": "nav",
+      "icon": "Back",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "title": [
+          "string",
+          "标题",
+          "页面标题"
+        ],
+        "content": [
+          "string",
+          "内容",
+          ""
+        ]
+      },
+      "events": [
+        "back"
+      ]
+    },
+    {
+      "name": "ElBacktop",
+      "label": "回到顶部",
+      "category": "nav",
+      "icon": "Top",
+      "props": {
+        "target": [
+          "string",
+          "目标",
+          ""
+        ],
+        "visibilityHeight": [
+          "number",
+          "显示高度",
+          200
+        ],
+        "right": [
+          "number",
+          "右距离",
+          40
+        ],
+        "bottom": [
+          "number",
+          "下距离",
+          40
+        ]
+      },
+      "events": [
+        "click"
+      ]
+    },
+    {
+      "name": "ElAffix",
+      "label": "固钉",
+      "category": "nav",
+      "icon": "Paperclip",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "offset": [
+          "number",
+          "偏移",
+          0
+        ],
+        "position": [
+          "string",
+          "位置",
+          "top",
+          {
+            "enum": [
+              "top",
+              "bottom"
+            ],
+            "ui": "select"
+          }
+        ],
+        "target": [
+          "string",
+          "目标",
+          ""
+        ]
+      }
+    },
+    {
+      "name": "ElAnchor",
+      "label": "锚点",
+      "category": "nav",
+      "icon": "Link",
+      "container": true,
+      "accepts": [
+        "ElAnchorLink"
+      ],
+      "props": {
+        "offset": [
+          "number",
+          "偏移",
+          0
+        ],
+        "bound": [
+          "number",
+          "边界",
+          15
+        ],
+        "container": [
+          "string",
+          "容器",
+          ""
+        ],
+        "direction": [
+          "string",
+          "方向",
+          "vertical",
+          {
+            "enum": [
+              "vertical",
+              "horizontal"
+            ],
+            "ui": "radio"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ElAnchorLink",
+      "label": "锚点链接",
+      "category": "nav",
+      "icon": "Link",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "href": [
+          "string",
+          "锚点",
+          "#section-1"
+        ],
+        "title": [
+          "string",
+          "标题",
+          "章节"
+        ]
+      }
+    },
+    {
+      "name": "img",
+      "label": "图片",
+      "category": "media",
+      "source": "native",
+      "element": "img",
+      "icon": "Picture",
+      "props": {
+        "src": [
+          "string",
+          "地址",
+          ""
+        ],
+        "alt": [
+          "string",
+          "替代文字",
+          ""
+        ],
+        "width": [
+          "string",
+          "宽度",
+          ""
+        ],
+        "height": [
+          "string",
+          "高度",
+          ""
+        ],
+        "objectFit": [
+          "string",
+          "填充",
+          "cover",
+          {
+            "enum": [
+              "fill",
+              "contain",
+              "cover",
+              "none",
+              "scale-down"
+            ],
+            "ui": "select"
+          }
+        ],
+        "loading": [
+          "string",
+          "加载",
+          "lazy",
+          {
+            "enum": [
+              "lazy",
+              "eager"
+            ],
+            "ui": "select"
+          }
+        ],
+        "borderRadius": [
+          "number",
+          "圆角",
+          0,
+          {
+            "minimum": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "video",
+      "label": "视频",
+      "category": "media",
+      "source": "native",
+      "element": "video",
+      "icon": "VideoCamera",
+      "props": {
+        "src": [
+          "string",
+          "地址",
+          ""
+        ],
+        "poster": [
+          "string",
+          "封面",
+          ""
+        ],
+        "controls": [
+          "boolean",
+          "控制条",
+          true
+        ],
+        "autoplay": [
+          "boolean",
+          "自动播放",
+          false
+        ],
+        "loop": [
+          "boolean",
+          "循环",
+          false
+        ],
+        "muted": [
+          "boolean",
+          "静音",
+          false
+        ],
+        "width": [
+          "string",
+          "宽度",
+          "100%"
+        ],
+        "height": [
+          "string",
+          "高度",
+          ""
+        ]
+      }
+    },
+    {
+      "name": "audio",
+      "label": "音频",
+      "category": "media",
+      "source": "native",
+      "element": "audio",
+      "icon": "Microphone",
+      "props": {
+        "src": [
+          "string",
+          "地址",
+          ""
+        ],
+        "controls": [
+          "boolean",
+          "控制条",
+          true
+        ],
+        "autoplay": [
+          "boolean",
+          "自动播放",
+          false
+        ],
+        "loop": [
+          "boolean",
+          "循环",
+          false
+        ]
+      }
+    },
+    {
+      "name": "iframe",
+      "label": "内嵌网页",
+      "category": "media",
+      "source": "native",
+      "element": "iframe",
+      "icon": "Monitor",
+      "props": {
+        "src": [
+          "string",
+          "地址",
+          "about:blank"
+        ],
+        "width": [
+          "string",
+          "宽度",
+          "100%"
+        ],
+        "height": [
+          "string",
+          "高度",
+          "360px"
+        ],
+        "title": [
+          "string",
+          "标题",
+          "嵌入内容"
+        ],
+        "sandbox": [
+          "string",
+          "沙箱",
+          "allow-scripts allow-same-origin"
+        ],
+        "allow": [
+          "string",
+          "权限",
+          ""
+        ]
+      }
+    },
+    {
+      "name": "rich-text",
+      "label": "富文本",
+      "category": "media",
+      "source": "rich",
+      "element": "RichText",
+      "icon": "EditPen",
+      "props": {
+        "content": [
+          "string",
+          "内容",
+          "<p>在这里输入富文本内容</p>",
+          {
+            "ui": "code",
+            "g": "内容"
+          }
+        ],
+        "placeholder": [
+          "string",
+          "占位符",
+          "请输入内容"
+        ],
+        "readonly": [
+          "boolean",
+          "只读",
+          false
+        ],
+        "height": [
+          "number",
+          "高度",
+          220,
+          {
+            "minimum": 80
+          }
+        ],
+        "toolbar": [
+          "boolean",
+          "工具栏",
+          true
+        ]
+      },
+      "events": [
+        "input",
+        "change"
+      ]
+    },
+    {
+      "name": "markdown",
+      "label": "Markdown",
+      "category": "media",
+      "source": "rich",
+      "element": "MarkdownRenderer",
+      "icon": "Document",
+      "props": {
+        "content": [
+          "string",
+          "内容",
+          "# 标题\n\n正文内容",
+          {
+            "ui": "code",
+            "g": "内容"
+          }
+        ],
+        "height": [
+          "string",
+          "高度",
+          ""
+        ]
+      }
+    },
+    {
+      "name": "code-block",
+      "label": "代码块",
+      "category": "media",
+      "source": "rich",
+      "element": "CodeBlock",
+      "icon": "Cpu",
+      "props": {
+        "code": [
+          "string",
+          "代码",
+          "<script>console.log('hello')</script>",
+          {
+            "ui": "code",
+            "g": "内容"
+          }
+        ],
+        "language": [
+          "string",
+          "语言",
+          "javascript",
+          {
+            "enum": [
+              "javascript",
+              "typescript",
+              "python",
+              "json",
+              "html",
+              "css",
+              "sql",
+              "bash",
+              "text"
+            ],
+            "ui": "select"
+          }
+        ],
+        "showLineNumbers": [
+          "boolean",
+          "行号",
+          true
+        ],
+        "height": [
+          "string",
+          "高度",
+          ""
+        ]
+      }
+    },
+    {
+      "name": "chart-bar",
+      "label": "柱状图",
+      "category": "chart",
+      "source": "chart",
+      "element": "ChartRenderer",
+      "icon": "Histogram",
+      "props": {
+        "chartType": [
+          "string",
+          "图表类型",
+          "bar",
+          {
+            "enum": [
+              "bar"
+            ],
+            "ui": "select"
+          }
+        ],
+        "data": [
+          "array",
+          "数据",
+          [
+            {
+              "name": "一月",
+              "value": 120
+            },
+            {
+              "name": "二月",
+              "value": 200
+            },
+            {
+              "name": "三月",
+              "value": 150
+            }
+          ],
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "xField": [
+          "string",
+          "名称字段",
+          "name"
+        ],
+        "valueField": [
+          "string",
+          "数值字段",
+          "value"
+        ],
+        "series": [
+          "array",
+          "多系列",
+          [],
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "height": [
+          "number",
+          "高度",
+          280,
+          {
+            "minimum": 120
+          }
+        ],
+        "showLegend": [
+          "boolean",
+          "图例",
+          true
+        ],
+        "showGrid": [
+          "boolean",
+          "网格",
+          true
+        ],
+        "colors": [
+          "array",
+          "配色",
+          [
+            "#409eff",
+            "#67c23a",
+            "#e6a23c",
+            "#f56c6c"
+          ],
+          {
+            "ui": "json",
+            "g": "外观"
+          }
+        ],
+        "option": [
+          "object",
+          "ECharts option",
+          {},
+          {
+            "ui": "echartsOption",
+            "g": "高级"
+          }
+        ]
+      },
+      "events": [
+        "pointClick"
+      ]
+    },
+    {
+      "name": "chart-line",
+      "label": "折线图",
+      "category": "chart",
+      "source": "chart",
+      "element": "ChartRenderer",
+      "icon": "TrendCharts",
+      "props": {
+        "chartType": [
+          "string",
+          "图表类型",
+          "line",
+          {
+            "enum": [
+              "line"
+            ],
+            "ui": "select"
+          }
+        ],
+        "data": [
+          "array",
+          "数据",
+          [
+            {
+              "name": "一月",
+              "value": 120
+            },
+            {
+              "name": "二月",
+              "value": 200
+            },
+            {
+              "name": "三月",
+              "value": 150
+            }
+          ],
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "xField": [
+          "string",
+          "名称字段",
+          "name"
+        ],
+        "valueField": [
+          "string",
+          "数值字段",
+          "value"
+        ],
+        "series": [
+          "array",
+          "多系列",
+          [],
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "height": [
+          "number",
+          "高度",
+          280,
+          {
+            "minimum": 120
+          }
+        ],
+        "smooth": [
+          "boolean",
+          "平滑",
+          true
+        ],
+        "area": [
+          "boolean",
+          "面积",
+          false
+        ],
+        "showLegend": [
+          "boolean",
+          "图例",
+          true
+        ],
+        "showGrid": [
+          "boolean",
+          "网格",
+          true
+        ],
+        "colors": [
+          "array",
+          "配色",
+          [
+            "#409eff",
+            "#67c23a",
+            "#e6a23c",
+            "#f56c6c"
+          ],
+          {
+            "ui": "json",
+            "g": "外观"
+          }
+        ],
+        "option": [
+          "object",
+          "ECharts option",
+          {},
+          {
+            "ui": "echartsOption",
+            "g": "高级"
+          }
+        ]
+      },
+      "events": [
+        "pointClick"
+      ]
+    },
+    {
+      "name": "chart-pie",
+      "label": "饼图",
+      "category": "chart",
+      "source": "chart",
+      "element": "ChartRenderer",
+      "icon": "PieChart",
+      "props": {
+        "chartType": [
+          "string",
+          "图表类型",
+          "pie",
+          {
+            "enum": [
+              "pie",
+              "doughnut"
+            ],
+            "ui": "select"
+          }
+        ],
+        "data": [
+          "array",
+          "数据",
+          [
+            {
+              "name": "类别一",
+              "value": 40
+            },
+            {
+              "name": "类别二",
+              "value": 30
+            },
+            {
+              "name": "类别三",
+              "value": 30
+            }
+          ],
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "nameField": [
+          "string",
+          "名称字段",
+          "name"
+        ],
+        "valueField": [
+          "string",
+          "数值字段",
+          "value"
+        ],
+        "innerRadius": [
+          "number",
+          "内半径",
+          0,
+          {
+            "minimum": 0,
+            "maximum": 90
+          }
+        ],
+        "height": [
+          "number",
+          "高度",
+          280,
+          {
+            "minimum": 120
+          }
+        ],
+        "showLegend": [
+          "boolean",
+          "图例",
+          true
+        ],
+        "showPercent": [
+          "boolean",
+          "百分比",
+          true
+        ],
+        "colors": [
+          "array",
+          "配色",
+          [
+            "#409eff",
+            "#67c23a",
+            "#e6a23c",
+            "#f56c6c"
+          ],
+          {
+            "ui": "json",
+            "g": "外观"
+          }
+        ],
+        "option": [
+          "object",
+          "ECharts option",
+          {},
+          {
+            "ui": "echartsOption",
+            "g": "高级"
+          }
+        ]
+      },
+      "events": [
+        "pointClick"
+      ]
+    },
+    {
+      "name": "chart-scatter",
+      "label": "散点图",
+      "category": "chart",
+      "source": "chart",
+      "element": "ChartRenderer",
+      "icon": "DataLine",
+      "props": {
+        "chartType": [
+          "string",
+          "图表类型",
+          "scatter",
+          {
+            "enum": [
+              "scatter"
+            ],
+            "ui": "select"
+          }
+        ],
+        "data": [
+          "array",
+          "数据",
+          [
+            {
+              "x": 10,
+              "y": 20
+            },
+            {
+              "x": 30,
+              "y": 40
+            }
+          ],
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "xField": [
+          "string",
+          "X 字段",
+          "x"
+        ],
+        "yField": [
+          "string",
+          "Y 字段",
+          "y"
+        ],
+        "height": [
+          "number",
+          "高度",
+          280,
+          {
+            "minimum": 120
+          }
+        ],
+        "showGrid": [
+          "boolean",
+          "网格",
+          true
+        ],
+        "colors": [
+          "array",
+          "配色",
+          [
+            "#409eff",
+            "#67c23a",
+            "#e6a23c"
+          ],
+          {
+            "ui": "json",
+            "g": "外观"
+          }
+        ],
+        "option": [
+          "object",
+          "ECharts option",
+          {},
+          {
+            "ui": "echartsOption",
+            "g": "高级"
+          }
+        ]
+      },
+      "events": [
+        "pointClick"
+      ]
+    },
+    {
+      "name": "chart-map",
+      "label": "地图",
+      "category": "chart",
+      "source": "chart",
+      "element": "ChartRenderer",
+      "icon": "MapLocation",
+      "props": {
+        "chartType": [
+          "string",
+          "图表类型",
+          "map",
+          {
+            "enum": [
+              "map"
+            ],
+            "ui": "select"
+          }
+        ],
+        "data": [
+          "array",
+          "数据",
+          [],
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "height": [
+          "number",
+          "高度",
+          320,
+          {
+            "minimum": 120
+          }
+        ],
+        "option": [
+          "object",
+          "ECharts option",
+          {},
+          {
+            "ui": "echartsOption",
+            "g": "高级"
+          }
+        ]
+      }
+    },
+    {
+      "name": "chart-gauge",
+      "label": "仪表盘",
+      "category": "chart",
+      "source": "chart",
+      "element": "ChartRenderer",
+      "icon": "Odometer",
+      "props": {
+        "chartType": [
+          "string",
+          "图表类型",
+          "gauge",
+          {
+            "enum": [
+              "gauge"
+            ],
+            "ui": "select"
+          }
+        ],
+        "value": [
+          "number",
+          "当前值",
+          68
+        ],
+        "min": [
+          "number",
+          "最小值",
+          0
+        ],
+        "max": [
+          "number",
+          "最大值",
+          100
+        ],
+        "unit": [
+          "string",
+          "单位",
+          "%"
+        ],
+        "height": [
+          "number",
+          "高度",
+          280,
+          {
+            "minimum": 120
+          }
+        ],
+        "colors": [
+          "array",
+          "配色",
+          [
+            "#409eff",
+            "#67c23a",
+            "#e6a23c"
+          ],
+          {
+            "ui": "json",
+            "g": "外观"
+          }
+        ],
+        "option": [
+          "object",
+          "ECharts option",
+          {},
+          {
+            "ui": "echartsOption",
+            "g": "高级"
+          }
+        ]
+      }
+    },
+    {
+      "name": "chart-custom",
+      "label": "自定义图表",
+      "category": "chart",
+      "source": "chart",
+      "element": "ChartRenderer",
+      "icon": "MagicStick",
+      "props": {
+        "chartType": [
+          "string",
+          "图表类型",
+          "custom",
+          {
+            "enum": [
+              "custom"
+            ],
+            "ui": "select"
+          }
+        ],
+        "option": [
+          "object",
+          "ECharts option",
+          {
+            "series": []
+          },
+          {
+            "ui": "echartsOption",
+            "g": "高级"
+          }
+        ],
+        "height": [
+          "number",
+          "高度",
+          320,
+          {
+            "minimum": 120
+          }
+        ]
+      }
+    },
+    {
+      "name": "html",
+      "label": "HTML 片段",
+      "category": "advanced",
+      "source": "advanced",
+      "element": "HtmlBlock",
+      "icon": "Document",
+      "props": {
+        "html": [
+          "string",
+          "HTML",
+          "<div style=\"padding:12px\">自定义 HTML</div>",
+          {
+            "ui": "code",
+            "g": "内容"
+          }
+        ],
+        "sanitize": [
+          "boolean",
+          "安全过滤",
+          true,
+          {
+            "g": "安全"
+          }
+        ]
+      }
+    },
+    {
+      "name": "svg",
+      "label": "SVG",
+      "category": "advanced",
+      "source": "advanced",
+      "element": "SvgBlock",
+      "icon": "MagicStick",
+      "props": {
+        "code": [
+          "string",
+          "SVG 代码",
+          "<svg viewBox=\"0 0 100 100\"><circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"#409eff\"/></svg>",
+          {
+            "ui": "code",
+            "g": "内容"
+          }
+        ],
+        "width": [
+          "string",
+          "宽度",
+          "160px"
+        ],
+        "height": [
+          "string",
+          "高度",
+          "160px"
+        ]
+      }
+    },
+    {
+      "name": "canvas",
+      "label": "Canvas",
+      "category": "advanced",
+      "source": "advanced",
+      "element": "CanvasBlock",
+      "icon": "Brush",
+      "props": {
+        "width": [
+          "number",
+          "宽度",
+          320,
+          {
+            "minimum": 1
+          }
+        ],
+        "height": [
+          "number",
+          "高度",
+          200,
+          {
+            "minimum": 1
+          }
+        ],
+        "draw": [
+          "string",
+          "绘制命令（JSON 数组）",
+          "[]",
+          {
+            "ui": "code",
+            "g": "内容"
+          }
+        ],
+        "background": [
+          "string",
+          "背景",
+          "transparent",
+          {
+            "ui": "color"
+          }
+        ]
+      }
+    },
+    {
+      "name": "component-slot",
+      "label": "插槽占位",
+      "category": "advanced",
+      "source": "advanced",
+      "element": "ComponentSlot",
+      "icon": "CopyDocument",
+      "props": {
+        "name": [
+          "string",
+          "插槽名",
+          "default"
+        ],
+        "fallback": [
+          "string",
+          "缺省内容",
+          ""
+        ]
+      }
+    },
+    {
+      "name": "repeater",
+      "label": "循环容器",
+      "category": "advanced",
+      "source": "advanced",
+      "element": "Repeater",
+      "icon": "Refresh",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "list": [
+          "array",
+          "列表",
+          [],
+          {
+            "ui": "json",
+            "g": "数据"
+          }
+        ],
+        "itemVar": [
+          "string",
+          "循环变量",
+          "item"
+        ],
+        "indexVar": [
+          "string",
+          "索引变量",
+          "index"
+        ]
+      }
+    },
+    {
+      "name": "conditional",
+      "label": "条件容器",
+      "category": "advanced",
+      "source": "advanced",
+      "element": "Conditional",
+      "icon": "SwitchButton",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "when": [
+          "string",
+          "条件表达式",
+          "true",
+          {
+            "ui": "expression",
+            "g": "条件"
+          }
+        ],
+        "keepPlaceholder": [
+          "boolean",
+          "保留占位",
+          false,
+          {
+            "g": "条件"
+          }
+        ]
+      }
+    },
+    {
+      "name": "portal",
+      "label": "传送门",
+      "category": "advanced",
+      "source": "advanced",
+      "element": "PortalBlock",
+      "icon": "Position",
+      "container": true,
+      "accepts": [
+        "*"
+      ],
+      "props": {
+        "target": [
+          "string",
+          "目标选择器",
+          "body"
+        ]
+      }
+    },
+    {
+      "name": "public-master-detail",
+      "label": "公开主从详情",
+      "category": "data",
+      "icon": "Connection",
+      "source": "custom",
+      "element": "PublicMasterDetail",
+      "props": {
+        "masterModelId": [
+          "number",
+          "主模型 ID",
+          0,
+          {
+            "ui": "modelPicker",
+            "g": "关系"
+          }
+        ],
+        "masterKeyField": [
+          "string",
+          "业务主键字段",
+          "id",
+          {
+            "g": "关系"
+          }
+        ],
+        "titleField": [
+          "string",
+          "标题字段",
+          "title"
+        ],
+        "summaryField": [
+          "string",
+          "摘要字段",
+          "summary"
+        ],
+        "contentField": [
+          "string",
+          "正文字段",
+          "content"
+        ],
+        "relations": [
+          "array",
+          "子表关系",
+          [],
+          {
+            "ui": "json",
+            "g": "关系"
+          }
+        ],
+        "backPath": [
+          "string",
+          "返回路径",
+          "data"
+        ],
+        "listPath": [
+          "string",
+          "列表路径",
+          "data"
+        ]
+      },
+      "events": []
+    },
+    {
+      "name": "public-join-table",
+      "label": "公开 JOIN 聚合表",
+      "category": "data",
+      "icon": "Grid",
+      "source": "custom",
+      "element": "PublicJoinTable",
+      "props": {
+        "masterModelId": [
+          "number",
+          "主模型 ID",
+          0,
+          {
+            "ui": "modelPicker",
+            "g": "关系"
+          }
+        ],
+        "childModelId": [
+          "number",
+          "子模型 ID",
+          0,
+          {
+            "ui": "modelPicker",
+            "g": "关系"
+          }
+        ],
+        "foreignKey": [
+          "string",
+          "子表外键",
+          "",
+          {
+            "g": "关系"
+          }
+        ],
+        "masterKeyField": [
+          "string",
+          "主表业务键",
+          "id",
+          {
+            "g": "关系"
+          }
+        ],
+        "title": [
+          "string",
+          "标题",
+          "主从汇总"
+        ],
+        "pageSize": [
+          "number",
+          "每页条数",
+          20
+        ],
+        "relations": [
+          "array",
+          "多级关系",
+          [],
+          {
+            "ui": "json",
+            "g": "关系"
+          }
+        ],
+        "exportable": [
+          "boolean",
+          "可导出",
+          true
+        ],
+        "maskFields": [
+          "array",
+          "脱敏字段",
+          [],
+          {
+            "ui": "json",
+            "g": "安全"
+          }
+        ]
+      },
+      "events": []
+    },
+    {
+      "name": "wp-echarts",
+      "label": "ECharts 图表",
+      "type": "chart",
+      "category": "chart",
+      "version": "1.0.0",
+      "icon": "TrendCharts",
+      "source": "legacy",
+      "element": "wp-echarts",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "chartType": {
+            "type": "string",
+            "title": "图表类型",
+            "default": "line",
+            "enum": [
+              "line",
+              "bar",
+              "pie",
+              "doughnut",
+              "scatter",
+              "radar",
+              "funnel",
+              "gauge",
+              "tree",
+              "sunburst",
+              "sankey",
+              "graph",
+              "heatmap",
+              "candlestick",
+              "boxplot",
+              "custom"
+            ]
+          },
+          "option": {
+            "type": "object",
+            "title": "ECharts Option（完整配置）",
+            "x-ui": "json",
+            "default": {}
+          },
+          "height": {
+            "type": "number",
+            "title": "高度",
+            "default": 320,
+            "minimum": 120
+          },
+          "theme": {
+            "type": "string",
+            "title": "主题",
+            "default": "default",
+            "enum": [
+              "default",
+              "dark"
+            ]
+          },
+          "renderer": {
+            "type": "string",
+            "title": "渲染器",
+            "default": "canvas",
+            "enum": [
+              "canvas",
+              "svg"
+            ]
+          },
+          "autoResize": {
+            "type": "boolean",
+            "title": "自动适配",
+            "default": true
+          },
+          "mapName": {
+            "type": "string",
+            "title": "地图名称",
+            "default": "custom"
+          },
+          "geoJson": {
+            "type": "object",
+            "title": "地图 GeoJSON",
+            "x-ui": "json",
+            "default": null
+          }
+        }
+      },
+      "default_props": {
+        "chartType": "line",
+        "height": 320,
+        "theme": "default",
+        "renderer": "canvas",
+        "autoResize": true,
+        "option": {}
+      },
+      "events": [
+        "pointClick",
+        "chartEvent",
+        "legendselectchanged",
+        "datazoom",
+        "brushselected",
+        "geoselectchanged"
+      ],
+      "slots": [],
+      "accept_children": [],
+      "is_container": false
+    },
+    {
+      "name": "wp-ws-live",
+      "label": "实时数据流",
+      "type": "data",
+      "category": "data",
+      "version": "1.0.0",
+      "icon": "Connection",
+      "source": "legacy",
+      "element": "wp-ws-live",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "datasourceId": {
+            "type": "number",
+            "title": "WebSocket 数据源 ID",
+            "default": 0
+          },
+          "title": {
+            "type": "string",
+            "title": "标题",
+            "default": "实时数据"
+          },
+          "field": {
+            "type": "string",
+            "title": "取数字段",
+            "default": ""
+          },
+          "limit": {
+            "type": "number",
+            "title": "最多保留条数",
+            "default": 100,
+            "minimum": 1
+          }
+        }
+      },
+      "default_props": {
+        "datasourceId": 0,
+        "title": "实时数据",
+        "field": "",
+        "limit": 100
+      },
+      "events": [],
+      "slots": [],
+      "accept_children": [],
+      "is_container": false
+    },
+    {
+      "name": "workflow-task-center",
+      "label": "审批中心",
+      "type": "advanced",
+      "category": "workflow",
+      "version": "1.0.0",
+      "icon": "Finished",
+      "source": "legacy",
+      "element": "workflow-task-center",
+      "props_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "default_props": {},
+      "events": [],
+      "slots": [],
+      "accept_children": [],
+      "is_container": false
+    },
+    {
+      "name": "notification-inbox",
+      "label": "消息中心",
+      "type": "advanced",
+      "category": "workflow",
+      "version": "1.0.0",
+      "icon": "Bell",
+      "source": "legacy",
+      "element": "notification-inbox",
+      "props_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "default_props": {},
+      "events": [],
+      "slots": [],
+      "accept_children": [],
+      "is_container": false
+    }
+  ]
+}

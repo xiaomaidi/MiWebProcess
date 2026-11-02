@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+db.sqlite3
+*.sqlite3
+*.dump
+media/
+static_prerender/
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+.tmp/
+.vite/
+*.local
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Celery / logs
+celerybeat-schedule*
+*.log
+.pytest_cache/
+.mypy_cache/
+# MiWebProcess runtime
+.runtime/
+.tmp/
+.backups/
+backups/
+screenshots/
+.audit-result.txt
+.audit.cjs
+
+# generated screenshots / diagnostics
+backend/scripts/*.png
+backend/designer_*.json
+
+# local launch helpers
+backend/_runrealdsh.py
+backend/_*.py
+
+# Edge test profile
+backend/.edge*/
+backend/.edge-*.txt
+backend/_*.json

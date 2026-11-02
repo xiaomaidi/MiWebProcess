@@ -1,0 +1,124 @@
+{
+  "categories": [
+    {"name": "游戏", "slug": "games", "sort": 1, "color": "#e4393c"},
+    {"name": "电竞", "slug": "esports", "sort": 2, "color": "#2f6fed"},
+    {"name": "硬件", "slug": "hardware", "sort": 3, "color": "#00a870"},
+    {"name": "评测", "slug": "reviews", "sort": 4, "color": "#ff7d00"},
+    {"name": "文化", "slug": "culture", "sort": 5, "color": "#8f5cf6"}
+  ],
+  "authors": [
+    {"name": "夜语", "avatar": "https://i.pravatar.cc/80?img=12", "bio": "资深游戏编辑"},
+    {"name": "阿飞", "avatar": "https://i.pravatar.cc/80?img=33", "bio": "硬件评测作者"},
+    {"name": "编辑部", "avatar": "https://i.pravatar.cc/80?img=5", "bio": "游民资讯编辑部"}
+  ],
+  "articles": [
+    {
+      "title": "《黑神话：悟空》DLC 首曝：新的地图、Boss 与结局分支",
+      "slug": "black-myth-dlc-first-look",
+      "summary": "游戏科学首次展示 DLC 实机画面，并确认将带来全新地图与多结局分支。",
+      "category": "games", "author": "夜语", "tags": ["黑神话", "动作游戏", "DLC"],
+      "published_at": "2026-10-29", "featured": true, "views": 128430,
+      "cover": "https://picsum.photos/seed/portal-1/900/520",
+      "content": "<p>在昨晚举行的开发者直播中，游戏科学首次公开了《黑神话：悟空》首个大型 DLC 的实机演示。新内容将围绕“天庭”与“地府”两条线索展开，玩家将进入此前未开放的区域。</p><h2>全新地图与 Boss</h2><p>本次 DLC 将加入四张全新地图，每张地图都拥有独立的环境机制。开发团队表示，Boss 设计会更强调招式博弈，而不是单纯的数值堆叠。</p><blockquote>“我们希望玩家在每一次失败后，都能清楚地知道自己输在哪里。”</blockquote><p>此外，DLC 还会补充多条支线任务，并首次引入结局分支系统。</p>"
+    },
+    {
+      "title": "RTX 5090 深度评测：4K 光追性能提升有多大？",
+      "slug": "rtx-5090-review",
+      "summary": "新一代旗舰显卡在 4K 光追下的表现、功耗与散热全面测试。",
+      "category": "hardware", "author": "阿飞", "tags": ["RTX 5090", "显卡", "评测"],
+      "published_at": "2026-10-28", "featured": true, "views": 96320,
+      "cover": "https://picsum.photos/seed/portal-2/900/520",
+      "content": "<p>我们拿到 RTX 5090 公版已经一周，测试平台为 Ryzen 9 9950X3D 与 64GB DDR5-6400。本文重点考察 4K 光追、DLSS 4 与专业创作场景。</p><h2>传统光栅性能</h2><p>在 4K 最高画质下，RTX 5090 相比 RTX 4090 平均提升约 42%，部分光追场景提升超过 60%。但功耗也同步上升，整卡峰值接近 600W。</p><h2>DLSS 4 的实际意义</h2><p>DLSS 4 的多帧生成在支持游戏中能显著提高帧率，但延迟仍然是竞技玩家需要关注的问题。</p>"
+    },
+    {
+      "title": "TI14 决赛前瞻：LGD 与 Spirit 的第三次巅峰对决",
+      "slug": "ti14-final-preview",
+      "summary": "两支队伍本赛季三次交手互有胜负，BP 与中期节奏将成为关键。",
+      "category": "esports", "author": "编辑部", "tags": ["DOTA2", "TI14", "电竞"],
+      "published_at": "2026-10-28", "featured": true, "views": 74110,
+      "cover": "https://picsum.photos/seed/portal-3/900/520",
+      "content": "<p>TI14 总决赛将在本周日打响，LGD 与 Spirit 继小组赛、胜者组决赛后第三次相遇。前两次交手双方各胜一场，且都打满了三局。</p><h2>BP 博弈</h2><p>Spirit 在本届赛事中展现了极深的英雄池，而 LGD 更依赖双核体系。败者组决赛中，LGD 开始尝试三号位先知与中单帕克的新组合。</p><p>从数据上看，LGD 在 25 分钟前的经济领先率更高，而 Spirit 更擅长拖入 40 分钟后的团战。</p>"
+    },
+    {
+      "title": "《空洞骑士：丝之歌》终于定档，9 月 18 日发售",
+      "slug": "silksong-release-date",
+      "summary": "等待多年的续作公布最终发售日，并带来一段全新的实机预告。",
+      "category": "games", "author": "夜语", "tags": ["独立游戏", "丝之歌"],
+      "published_at": "2026-10-27", "featured": false, "views": 65300,
+      "cover": "https://picsum.photos/seed/portal-4/900/520",
+      "content": "<p>Team Cherry 今日正式宣布，《空洞骑士：丝之歌》将于 9 月 18 日登陆 PC、Switch 与 PlayStation 平台。新预告展示了黄蜂女的全新武器与技能树。</p><p>本作将拥有超过 150 种敌人与 40 个 Boss，地图规模比前作更大，同时会加入更多辅助选项。</p>"
+    },
+    {
+      "title": "国产独立游戏《归途》试玩：一场关于记忆的公路旅行",
+      "slug": "gui-tu-demo",
+      "summary": "一款以西南山区为背景的叙事冒险游戏，用细腻的美术与音乐讲述回家的故事。",
+      "category": "reviews", "author": "夜语", "tags": ["国产独立", "叙事", "试玩"],
+      "published_at": "2026-10-27", "featured": false, "views": 38210,
+      "cover": "https://picsum.photos/seed/portal-5/900/520",
+      "content": "<p>《归途》的第一章发生在一座即将搬迁的西南小镇。玩家扮演一名多年未归的年轻人，在三天时间里重新认识自己的家人与故乡。</p><p>游戏没有战斗，核心玩法是对话、观察与整理行李。每一个选择都会改变最终的信件内容，但没有传统意义上的“好结局”和“坏结局”。</p>"
+    },
+    {
+      "title": "2026 年 10 月新游推荐：值得关注的 8 款作品",
+      "slug": "october-2026-games",
+      "summary": "从 3A 大作到独立小品，本月值得一试的游戏都在这里。",
+      "category": "games", "author": "编辑部", "tags": ["新游推荐", "月度榜单"],
+      "published_at": "2026-10-26", "featured": false, "views": 52800,
+      "cover": "https://picsum.photos/seed/portal-6/900/520",
+      "content": "<p>十月是传统意义上的大作档期，今年也不例外。我们挑选了 8 款在玩法或叙事上有亮点的作品，涵盖动作、策略、解谜与模拟经营。</p><h2>本月最值得尝试</h2><p>如果你喜欢高压战斗，《钢铁之诗》值得关注；偏好慢节奏的玩家可以试试《小镇邮差》。</p>"
+    },
+    {
+      "title": "机械键盘新趋势：磁轴、铝坨坨与客制化的下一站",
+      "slug": "keyboard-trends-2026",
+      "summary": "从磁轴到全铝机身，2026 年的键盘市场正在发生哪些变化？",
+      "category": "hardware", "author": "阿飞", "tags": ["键盘", "外设", "客制化"],
+      "published_at": "2026-10-26", "featured": false, "views": 29100,
+      "cover": "https://picsum.photos/seed/portal-7/900/520",
+      "content": "<p>磁轴键盘在 2026 年迎来了爆发，可调触发点与快速触发功能不再是高端产品专属。与此同时，全铝机身与 Gasket 结构也成为中端市场的新标配。</p><p>我们测试了市面上 12 款主流磁轴键盘，发现不同厂商的固件调校差异很大。</p>"
+    },
+    {
+      "title": "《赛博朋克 2077》续作进入全面制作阶段",
+      "slug": "cyberpunk-sequel-production",
+      "summary": "CD Projekt 确认续作已进入全面制作，并将采用全新引擎与多人模式。",
+      "category": "games", "author": "编辑部", "tags": ["赛博朋克", "CDPR"],
+      "published_at": "2026-10-25", "featured": false, "views": 88700,
+      "cover": "https://picsum.photos/seed/portal-8/900/520",
+      "content": "<p>CD Projekt 在最新财报中确认，《赛博朋克 2077》续作已经进入全面制作阶段。项目由北美团队主导，将使用虚幻引擎 5 开发。</p><p>官方表示，续作会保留夜之城的核心气质，但会引入新的城市区域与更复杂的派系系统。</p>"
+    },
+    {
+      "title": "从像素到光影：独立游戏美术的十年变化",
+      "slug": "indie-art-ten-years",
+      "summary": "独立游戏的美术风格越来越多样，但真正打动玩家的仍然是统一的视觉语言。",
+      "category": "culture", "author": "夜语", "tags": ["独立游戏", "美术", "文化"],
+      "published_at": "2026-10-25", "featured": false, "views": 21400,
+      "cover": "https://picsum.photos/seed/portal-9/900/520",
+      "content": "<p>十年前，像素风几乎是独立游戏的代名词。如今，手绘、低多边形、拼贴与 3D 渲染都能在独立作品中找到自己的位置。</p><p>但风格并不是目的。真正让人记住的作品，往往能用有限的资源建立一套自洽的视觉规则。</p>"
+    },
+    {
+      "title": "《星露谷物语》1.7 更新前瞻：新农场与多人合作改动",
+      "slug": "stardew-1-7-preview",
+      "summary": "ConcernedApe 公布了 1.7 版本的部分内容，包括新农场类型与联机优化。",
+      "category": "games", "author": "编辑部", "tags": ["星露谷", "模拟经营"],
+      "published_at": "2026-10-24", "featured": false, "views": 47600,
+      "cover": "https://picsum.photos/seed/portal-10/900/520",
+      "content": "<p>《星露谷物语》1.7 更新将加入“河畔农场”与“高山农场”两种新布局，并重做多人合作中的节日同步逻辑。</p><p>ConcernedApe 表示，这次更新仍然是免费更新，具体上线时间将在完成测试后公布。</p>"
+    },
+    {
+      "title": "电竞椅到底是不是智商税？我们做了 30 天测试",
+      "slug": "gaming-chair-30-days",
+      "summary": "从人体工学、透气性到长期坐感，电竞椅与办公椅的差距在哪里？",
+      "category": "hardware", "author": "阿飞", "tags": ["电竞椅", "人体工学"],
+      "published_at": "2026-10-24", "featured": false, "views": 33400,
+      "cover": "https://picsum.photos/seed/portal-11/900/520",
+      "content": "<p>我们挑选了 5 款价位从 800 元到 4000 元的电竞椅，与 3 款同价位人体工学椅进行对比。测试维度包括腰部支撑、坐垫压力分布、透气性与调节范围。</p><p>结论并不绝对：如果你每天久坐超过 8 小时，人体工学椅通常更合适。</p>"
+    },
+    {
+      "title": "《艾尔登法环》DLC 之后，FromSoftware 在做什么？",
+      "slug": "fromsoftware-next",
+      "summary": "从招聘信息与访谈中，我们整理了 FromSoftware 下一款作品的几条线索。",
+      "category": "games", "author": "夜语", "tags": ["FromSoftware", "魂系"],
+      "published_at": "2026-10-23", "featured": false, "views": 61200,
+      "cover": "https://picsum.photos/seed/portal-12/900/520",
+      "content": "<p>FromSoftware 近期发布了多条招聘信息，涉及开放世界关卡设计、多人系统与新技术研发。结合宫崎英高此前的访谈，下一款作品可能不再是传统魂系。</p><p>当然，在官方正式公布之前，一切都只是推测。</p>"
+    }
+  ]
+}

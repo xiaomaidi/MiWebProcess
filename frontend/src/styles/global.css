@@ -1,0 +1,213 @@
+:root {
+  --wp-canvas-bg: #f2f3f5;
+  --wp-accent: #409eff;
+  --wp-grid: #e4e7ed;
+  /* 设计态画布底色（淡蓝，与白色组件形成区分） */
+  --wp-canvas-sheet: #dceafd;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #c8cdd4;
+  border-radius: 4px;
+}
+
+/* ---------- 设计器 ---------- */
+.wp-designer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.wp-designer-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+.wp-panel {
+  background: #fff;
+  border-right: 1px solid #e4e7ed;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.wp-panel-left {
+  width: 260px;
+  min-width: 200px;
+}
+.wp-panel-right {
+  width: 300px;
+  min-width: 240px;
+  border-right: none;
+  border-left: 1px solid #e4e7ed;
+}
+.wp-canvas-area {
+  flex: 1;
+  position: relative;
+  overflow: auto;
+  background: var(--wp-canvas-bg);
+}
+.wp-canvas-viewport {
+  position: relative;
+  margin: 24px auto;
+  width: 1200px;
+  min-height: 800px;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  transform-origin: top center;
+}
+.wp-canvas-free {
+  position: relative;
+}
+
+/* 节点（设计态） */
+.wp-node {
+  position: relative;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.wp-node[draggable="true"] {
+  cursor: grab;
+}
+.wp-node[draggable="true"]:active {
+  cursor: grabbing;
+}
+.wp-node .wp-node-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  transition: border-color 0.1s;
+}
+.wp-node.wp-hovered .wp-node-overlay {
+  border-color: #a0cfff;
+}
+.wp-node.wp-selected .wp-node-overlay {
+  border-color: var(--wp-accent);
+  box-shadow: 0 0 0 1px var(--wp-accent);
+}
+.wp-node-label {
+  position: absolute;
+  top: -18px;
+  left: 0;
+  font-size: 11px;
+  line-height: 16px;
+  background: var(--wp-accent);
+  color: #fff;
+  padding: 0 6px;
+  border-radius: 2px;
+  white-space: nowrap;
+  z-index: 5;
+  display: none;
+}
+.wp-node.wp-selected .wp-node-label,
+.wp-node.wp-hovered .wp-node-label {
+  display: block;
+}
+/* 插入指示线 */
+.wp-insert-before {
+  box-shadow: 0 -2px 0 0 var(--wp-accent) !important;
+}
+.wp-insert-after {
+  box-shadow: 0 2px 0 0 var(--wp-accent) !important;
+}
+.wp-insert-inside {
+  box-shadow: 0 0 0 2px var(--wp-accent) inset !important;
+}
+
+/* 拖拽中 */
+.wp-dragging {
+  opacity: 0.5;
+}
+.wp-drop-hint {
+  position: absolute;
+  border: 2px dashed var(--wp-accent);
+  background: rgba(64, 158, 255, 0.08);
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* 自由布局 */
+.wp-free-item {
+  position: absolute;
+}
+
+/* ---------- 运行态 ---------- */
+.wp-runtime {
+  height: 100%;
+  overflow: auto;
+  background: #fff;
+}
+.wp-error-boundary {
+  border: 1px solid #f56c6c;
+  background: #fef0f0;
+  color: #c45656;
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin: 8px;
+}
+.wp-error-boundary code {
+  word-break: break-all;
+  display: block;
+  margin-top: 4px;
+  max-height: 80px;
+  overflow: auto;
+}
+.wp-modal-layer {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 网格纸 */
+.wp-canvas-grid {
+  background-image: linear-gradient(var(--wp-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--wp-grid) 1px, transparent 1px);
+  background-size: 8px 8px;
+}
+
+/* 入场动效 */
+[data-motion="fade-in"] {
+  animation: wp-fade-in 0.55s ease both;
+}
+[data-motion="fade-up"] {
+  animation: wp-fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+[data-motion="zoom-in"] {
+  animation: wp-zoom-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes wp-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes wp-fade-up {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes wp-zoom-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-motion] { animation: none !important; }
+}

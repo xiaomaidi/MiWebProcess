@@ -1,0 +1,20 @@
+services:
+  dsh:
+    build:
+      context: ..
+      dockerfile: services/Dockerfile.dsh
+    image: miwebprocess-dsh:latest
+    container_name: miwebprocess-dsh
+    ports:
+      - "9000:9000"
+    environment:
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:?set DEEPSEEK_API_KEY}
+      DSH_NO_UPDATE_CHECK: "1"
+      DSH_AGENT_TIMEOUT: "300"
+    volumes:
+      # 可选：挂载 DSH 配置/凭据目录，避免把密钥写进镜像
+      - ${DSH_HOME:-./.dsh-container}:/root/.dsh
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: "1.0"
+    network_mode: bridge

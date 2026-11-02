@@ -1,0 +1,72 @@
+{
+  "id": "dash-linec",
+  "type": "wp-echarts",
+  "props": {
+    "height": 280,
+    "option": {
+      "grid": {
+        "top": 40,
+        "left": 40,
+        "right": 18,
+        "bottom": 28
+      },
+      "xAxis": {
+        "data": [
+          "周一",
+          "周二",
+          "周三",
+          "周四",
+          "周五",
+          "周六",
+          "周日"
+        ],
+        "type": "category"
+      },
+      "yAxis": {
+        "type": "value"
+      },
+      "legend": {
+        "top": 0
+      },
+      "series": [
+        {
+          "data": [
+            820,
+            932,
+            901,
+            1290,
+            1330,
+            1450,
+            1620
+          ],
+          "name": "访问量",
+          "type": "line",
+          "smooth": true,
+          "areaStyle": {
+            "opacity": 0.12
+          }
+        },
+        {
+          "data": [
+            220,
+            260,
+            240,
+            360,
+            390,
+            410,
+            470
+          ],
+          "name": "转化数",
+          "type": "line",
+          "smooth": true
+        }
+      ],
+      "tooltip": {
+        "trigger": "axis"
+      }
+    },
+    "chartType": "line"
+  },
+  "children": [],
+  "componentVersion": "2.0.0"
+}

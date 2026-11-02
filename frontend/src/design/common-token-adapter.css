@@ -1,0 +1,97 @@
+/* 常用自定义组件的 Token 适配层：不改组件源码，也跟随页面/应用 Token。 */
+.wp-kit-editable,
+.wp-kit-filter,
+.wp-kit-timeline,
+.wp-kit-kanban,
+.wp-kit-wizard,
+.wp-kit-dropzone,
+.wp-kit-tree-value,
+.wp-kit-tree-panel,
+.wp-kit-calendar,
+.wp-kit-org,
+.wp-kit-approval,
+.wp-kit-scan,
+.wp-kit-print,
+.wp-kit-state {
+  color: var(--wp-text, #303133) !important;
+  background: var(--wp-surface, #fff) !important;
+  border-color: var(--wp-border, #dcdfe6) !important;
+}
+
+.wp-kit-editable h3,
+.wp-kit-filter-title,
+.wp-kit-timeline h3,
+.wp-kit-kanban h3,
+.wp-kit-calendar strong,
+.wp-kit-org h3,
+.wp-kit-approval h3,
+.wp-kit-state-title,
+.wp-kit-print-sheet h2 {
+  color: var(--wp-text, #303133) !important;
+}
+
+.wp-kit-editable th,
+.wp-kit-editable td,
+.wp-kit-filter-field span,
+.wp-kit-timeline-time,
+.wp-kit-org-card span,
+.wp-kit-approval-head span,
+.wp-kit-print-sub,
+.wp-kit-state,
+.wp-kit-state p {
+  color: var(--wp-muted, #909399) !important;
+  border-color: var(--wp-border, #dcdfe6) !important;
+}
+
+.wp-kit-editable button,
+.wp-kit-filter-actions button,
+.wp-kit-wizard-actions button,
+.wp-kit-dropzone button,
+.wp-kit-scan button,
+.wp-kit-print-toolbar button,
+.wp-kit-state button {
+  border-color: var(--wp-border, #dcdfe6) !important;
+  color: var(--wp-text, #303133) !important;
+  background: var(--wp-surface, #fff) !important;
+}
+
+.wp-kit-editable .wp-kit-save,
+.wp-kit-filter-actions .wp-kit-primary,
+.wp-kit-wizard-actions .wp-kit-primary,
+.wp-kit-scan button,
+.wp-kit-print-toolbar button,
+.wp-kit-state button {
+  background: var(--wp-accent, #409eff) !important;
+  border-color: var(--wp-accent, #409eff) !important;
+  color: #fff !important;
+}
+
+.wp-kit-editable input,
+.wp-kit-filter-field input,
+.wp-kit-filter-field select {
+  color: var(--wp-text, #303133) !important;
+  border-color: var(--wp-border, #dcdfe6) !important;
+  background: var(--wp-surface, #fff) !important;
+}
+
+.wp-kit-editable,
+.wp-kit-filter,
+.wp-kit-timeline,
+.wp-kit-wizard,
+.wp-kit-dropzone,
+.wp-kit-calendar,
+.wp-kit-org,
+.wp-kit-approval,
+.wp-kit-scan,
+.wp-kit-print {
+  border-radius: var(--wp-radius-lg, 10px) !important;
+}
+
+.wp-kit-editable .wp-kit-save,
+.wp-kit-filter-actions .wp-kit-primary,
+.wp-kit-wizard-actions .wp-kit-primary,
+.wp-kit-scan button,
+.wp-kit-print-toolbar button,
+.wp-kit-state button {
+  border-radius: var(--wp-radius-sm, 4px) !important;
+}
