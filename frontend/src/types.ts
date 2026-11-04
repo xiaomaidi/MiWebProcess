@@ -406,6 +406,7 @@ export interface DataModelField {
   placeholder?: string;
   format?: string;
   unit?: string;
+  formula?: string;
   /** 可选：数据模型字段上的额外校验规则（Element Plus FormItem rules 结构）。 */
   rules?: Record<string, any>[];
   /** reference 字段的可选选项。 */

@@ -18,8 +18,10 @@
               :height="220"
               :placeholder="field.description || `请输入${field.label || field.name}`"
             />
+            <GeoPicker v-else-if="field.type === 'geolocation'" v-model="values[field.name]" />
+            <SignaturePad v-else-if="field.type === 'signature'" v-model="values[field.name]" />
             <el-input
-              v-else-if="['longtext', 'json', 'geolocation', 'references', 'signature'].includes(field.type) || field.ui === 'textarea'"
+              v-else-if="['longtext', 'json'].includes(field.type) || field.ui === 'textarea'"
               v-model="values[field.name]"
               type="textarea"
               :rows="field.type === 'json' || field.type === 'geolocation' ? 5 : 3"
@@ -55,15 +57,43 @@
               style="width: 100%"
             />
             <el-color-picker v-else-if="field.type === 'color'" v-model="values[field.name]" />
-            <el-input-number
-              v-else-if="['user', 'department'].includes(field.type)"
+            <el-select
+              v-else-if="['reference', 'references'].includes(field.type)"
               v-model="values[field.name]"
-              :min="1"
-              controls-position="right"
+              :multiple="field.type === 'references'"
+              filterable
+              clearable
               style="width: 100%"
-            />
+            >
+              <el-option v-for="o in refOptions[field.name] || []" :key="String(o.value)" :label="o.label" :value="o.value" />
+            </el-select>
+            <div v-else-if="['image', 'file'].includes(field.type)" class="wp-upload-field">
+              <el-image v-if="field.type === 'image' && values[field.name]" :src="values[field.name]" fit="cover" class="wp-upload-preview" preview-teleported :preview-src-list="[values[field.name]]" />
+              <el-link v-if="field.type === 'file' && values[field.name]" :href="values[field.name]" target="_blank" type="primary">查看附件</el-link>
+              <el-input v-model="values[field.name]" size="small" placeholder="文件 URL" style="flex: 1" />
+              <input :id="'upload-' + field.name" type="file" hidden :accept="field.accept || undefined" @change="onFileChange($event, field)" />
+              <el-button size="small" :loading="uploading === field.name" @click="pickFile(field)">上传</el-button>
+            </div>
+            <el-select
+              v-else-if="field.type === 'user'"
+              v-model="values[field.name]"
+              filterable
+              clearable
+              style="width: 100%"
+            >
+              <el-option v-for="u in userOptions" :key="u.id" :label="u.display_name || u.username || `用户 ${u.id}`" :value="u.id" />
+            </el-select>
+            <el-select
+              v-else-if="field.type === 'department'"
+              v-model="values[field.name]"
+              filterable
+              clearable
+              style="width: 100%"
+            >
+              <el-option v-for="d in deptOptions" :key="d.id" :label="d.name || `部门 ${d.id}`" :value="d.id" />
+            </el-select>
             <el-input
-              v-else-if="['image', 'file', 'barcode', 'duration'].includes(field.type)"
+              v-else-if="['barcode', 'duration'].includes(field.type)"
               v-model="values[field.name]"
               :placeholder="field.type === 'image' || field.type === 'file' ? '文件 URL' : field.placeholder || '请输入'"
               clearable
@@ -73,7 +103,8 @@
               v-model="values[field.name]"
               :type="field.type === 'password' ? 'password' : 'text'"
               :show-password="field.type === 'password'"
-              :placeholder="field.placeholder || field.description || `请输入${field.label || field.name}`"
+              :disabled="['formula', 'auto_number'].includes(field.type)"
+              :placeholder="field.type === 'formula' ? '保存后自动计算' : field.placeholder || field.description || `请输入${field.label || field.name}`"
               clearable
             />
           </el-form-item>
@@ -98,6 +129,8 @@ import { ElMessage } from "element-plus";
 import { api, getToken } from "@/api";
 import { contentAppCode } from "../content-api";
 import RichText from "./rich-text.vue";
+import SignaturePad from "./signature-pad.vue";
+import GeoPicker from "./geo-picker.vue";
 import type { DataModelField, DataModelInfo, RuntimeScope } from "@/types";
 import { inject } from "vue";
 
@@ -154,6 +187,11 @@ const captchaToken = ref("");
 const captchaAnswer = ref("");
 const remoteFields = ref<DataModelField[]>([]);
 const values = reactive<Record<string, any>>({});
+const appId = ref(0);
+const userOptions = ref<any[]>([]);
+const deptOptions = ref<any[]>([]);
+const refOptions = reactive<Record<string, any[]>>({});
+const uploading = ref("");
 
 const effectiveFields = computed<DataModelField[]>(() =>
   Array.isArray(props.fields) && props.fields.length ? props.fields : remoteFields.value
@@ -207,8 +245,10 @@ async function loadModel() {
   if (Array.isArray(props.fields) && props.fields.length) return;
   try {
     const model = await api.get<DataModelInfo>(`/models/${id}/`);
+    appId.value = Number(model.app_id || 0);
     remoteFields.value = Array.isArray(model.fields) ? model.fields : [];
     setDefaults();
+    await loadAuxiliary();
   } catch {
     remoteFields.value = [];
   }
@@ -224,6 +264,72 @@ async function loadRecord() {
     Object.assign(values, data);
   } catch (e: any) {
     ElMessage.error(`加载记录失败：${e?.message || e}`);
+  }
+}
+
+async function loadAuxiliary() {
+  if (!appId.value) return;
+  const fields = effectiveFields.value;
+  const wantsUsers = fields.some((f) => f.type === "user");
+  const wantsDepts = fields.some((f) => f.type === "department");
+  const refFields = fields.filter((f) => ["reference", "references"].includes(f.type) && f.ref_model);
+  try {
+    if (wantsUsers) {
+      const data = await api.get<any>("/org/users/?size=200");
+      userOptions.value = data.results || data || [];
+    }
+  } catch { userOptions.value = []; }
+  try {
+    if (wantsDepts) {
+      const data = await api.get<any>("/org/departments/?size=200");
+      deptOptions.value = data.results || data || [];
+    }
+  } catch { deptOptions.value = []; }
+  if (!refFields.length) return;
+  try {
+    const models = await api.get<any>(`/apps/${appId.value}/models/`);
+    const list = Array.isArray(models) ? models : models.results || [];
+    for (const field of refFields) {
+      if (field.options?.length) {
+        refOptions[field.name] = field.options;
+        continue;
+      }
+      const target = list.find((m: any) => m.name === field.ref_model);
+      if (!target) continue;
+      const records = await api.get<any>(`/models/${target.id}/records/?page=1&size=100`);
+      const rows = records.results || records || [];
+      refOptions[field.name] = rows.map((row: any) => {
+        const data = row.data || {};
+        return { value: row.id, label: data.title || data.name || data.label || `#${row.id}` };
+      });
+    }
+  } catch {
+    /* directory/ref options are optional */
+  }
+}
+
+function pickFile(field: DataModelField) {
+  const el = document.getElementById(`upload-${field.name}`) as HTMLInputElement | null;
+  el?.click();
+}
+async function onFileChange(e: Event, field: DataModelField) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file) return;
+  if (!appId.value) {
+    ElMessage.warning("缺少应用 ID，无法上传");
+    return;
+  }
+  uploading.value = field.name;
+  try {
+    const asset = await api.upload<{ url: string }>(`/assets/?app_id=${appId.value}`, file);
+    values[field.name] = asset.url;
+    ElMessage.success("文件已上传");
+  } catch (err: any) {
+    ElMessage.error(err?.message || "上传失败");
+  } finally {
+    uploading.value = "";
   }
 }
 
@@ -355,6 +461,8 @@ function reset() {
 .wp-auto-form {
   width: 100%;
 }
+.wp-upload-field { display: flex; align-items: center; gap: 7px; width: 100%; }
+.wp-upload-preview { width: 42px; height: 32px; flex: none; border-radius: 4px; }
 .wp-auto-form-actions {
   display: flex;
   justify-content: flex-end;

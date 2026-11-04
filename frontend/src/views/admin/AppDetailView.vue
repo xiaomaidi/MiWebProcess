@@ -481,6 +481,10 @@
 
     <el-dialog v-model="fieldConfigVisible" title="字段配置" width="560px">
       <el-form label-position="top">
+        <el-form-item v-if="fieldConfigTarget?.type === 'formula'" label="公式表达式">
+          <el-input v-model="fieldConfig.formula" placeholder="例如 price * quantity，或 round(price * quantity, 2)" />
+          <span class="wp-muted-cell" style="margin-top: 4px">支持 + - * / % **、比较、and/or/not、round/min/max/abs/len/sum</span>
+        </el-form-item>
         <el-form-item label="选项 JSON（单选/多选/标签必填）">
           <el-input v-model="fieldConfig.optionsText" type="textarea" :rows="4" placeholder='[{"label":"启用","value":"active"}]' />
         </el-form-item>
@@ -692,6 +696,7 @@ function openFieldConfig(row: any) {
   fieldConfig.precision = row.precision ?? null;
   fieldConfig.placeholder = row.placeholder || "";
   fieldConfig.unique = !!row.unique;
+  fieldConfig.formula = row.formula || "";
   fieldConfigVisible.value = true;
 }
 function saveFieldConfig() {
@@ -714,13 +719,14 @@ function saveFieldConfig() {
   row.precision = fieldConfig.precision ?? undefined;
   row.placeholder = fieldConfig.placeholder || undefined;
   row.unique = fieldConfig.unique;
+  row.formula = fieldConfig.formula || undefined;
   fieldConfigVisible.value = false;
 }
 let modelEditingId: number | null = null;
 const modelDetailFields = ref<{ name: string; type: string; required?: boolean; default?: any; description?: string }[]>([]);
 const fieldConfigVisible = ref(false);
 const fieldConfigTarget = ref<any>(null);
-const fieldConfig = reactive({ optionsText: "", min: null as number | null, max: null as number | null, maxLength: null as number | null, precision: null as number | null, placeholder: "", unique: false });
+const fieldConfig = reactive({ optionsText: "", min: null as number | null, max: null as number | null, maxLength: null as number | null, precision: null as number | null, placeholder: "", unique: false, formula: "" });
 const memberForm = reactive({ user_id: 1, role: "editor" as AppMember["role"] });
 const roleTarget = reactive<{ user_id: number; role: AppMember["role"] }>({ user_id: 0, role: "viewer" });
 const trafficTarget = reactive<{ id: number; ratio: number }>({ id: 0, ratio: 100 });

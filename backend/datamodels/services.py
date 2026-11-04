@@ -1,6 +1,8 @@
 """数据模型字段校验 / 记录校验 / 动态过滤。"""
 from __future__ import annotations
 
+import ast
+import operator
 import re
 from datetime import datetime
 from typing import Any
@@ -44,6 +46,8 @@ def validate_fields_spec(fields: list, app=None) -> list:
             options = f.get("options")
             if not isinstance(options, list) or not options:
                 raise ValidationError({"detail": f"字段 {name} 为 {ftype} 类型需要 options"})
+        if ftype == "formula" and not str(f.get("formula") or "").strip():
+            raise ValidationError({"detail": f"字段 {name} 为 formula 类型需要 formula 表达式"})
         item = {
             "name": name,
             "type": ftype,
@@ -65,7 +69,7 @@ def validate_fields_spec(fields: list, app=None) -> list:
                 elif isinstance(option, (str, int, float)):
                     normalized_options.append({"label": str(option), "value": option})
             item["options"] = normalized_options
-        for key in ("min", "max", "precision", "currency", "max_length", "accept", "multiple", "ref_display", "placeholder", "format", "unit"):
+        for key in ("min", "max", "precision", "currency", "max_length", "accept", "multiple", "ref_display", "placeholder", "format", "unit", "formula"):
             if f.get(key) is not None:
                 item[key] = f[key]
         if isinstance(f.get("read_roles"), list):
@@ -116,6 +120,63 @@ def _check_type(value: Any, ftype: str, field_name: str) -> bool:
     if ftype in ("formula", "created_at", "updated_at"):
         return True
     return True
+
+
+_FORMULA_BINOPS = {
+    ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
+    ast.Div: operator.truediv, ast.FloorDiv: operator.floordiv,
+    ast.Mod: operator.mod, ast.Pow: operator.pow,
+}
+_FORMULA_CMPOPS = {
+    ast.Eq: operator.eq, ast.NotEq: operator.ne, ast.Gt: operator.gt,
+    ast.GtE: operator.ge, ast.Lt: operator.lt, ast.LtE: operator.le,
+}
+_FORMULA_FUNCS = {
+    "abs": abs, "round": round, "min": min, "max": max, "len": len,
+    "sum": sum, "int": int, "float": float, "str": str,
+}
+
+
+def evaluate_formula(expression: str, values: dict) -> Any:
+    """Small, side-effect-free formula evaluator for computed fields."""
+    tree = ast.parse(expression, mode="eval")
+
+    def run(node):
+        if isinstance(node, ast.Expression):
+            return run(node.body)
+        if isinstance(node, ast.Constant):
+            return node.value
+        if isinstance(node, ast.Name):
+            if node.id in values:
+                return values[node.id]
+            raise ValueError(f"未知字段 {node.id}")
+        if isinstance(node, ast.BinOp) and type(node.op) in _FORMULA_BINOPS:
+            return _FORMULA_BINOPS[type(node.op)](run(node.left), run(node.right))
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub, ast.Not)):
+            value = run(node.operand)
+            return +value if isinstance(node.op, ast.UAdd) else -value if isinstance(node.op, ast.USub) else not value
+        if isinstance(node, ast.BoolOp):
+            vals = [run(v) for v in node.values]
+            return all(vals) if isinstance(node.op, ast.And) else any(vals)
+        if isinstance(node, ast.Compare):
+            left = run(node.left)
+            for op, comparator in zip(node.ops, node.comparators):
+                if type(op) not in _FORMULA_CMPOPS:
+                    raise ValueError("不支持的比较运算")
+                right = run(comparator)
+                if not _FORMULA_CMPOPS[type(op)](left, right):
+                    return False
+                left = right
+            return True
+        if isinstance(node, ast.IfExp):
+            return run(node.body) if run(node.test) else run(node.orelse)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in _FORMULA_FUNCS:
+            return _FORMULA_FUNCS[node.func.id](*[run(a) for a in node.args])
+        if isinstance(node, (ast.List, ast.Tuple)):
+            return [run(e) for e in node.elts]
+        raise ValueError("不支持的公式语法")
+
+    return run(tree)
 
 
 def visible_data(model: DataModel, data: dict, role: str | None, *, admin: bool = False) -> dict:
@@ -304,7 +365,7 @@ def validate_data(
         if value is None:
             if spec.get("default") is not None:
                 cleaned[name] = spec["default"]
-            elif spec.get("required") and not partial:
+            elif spec.get("required") and not partial and spec["type"] not in ("formula", "auto_number", "created_at", "updated_at"):
                 errors.append(f"缺少必填字段 {name}")
             elif spec.get("required") and partial:
                 pass
@@ -345,6 +406,23 @@ def validate_data(
             # JSON 精确匹配
             if qs.filter(**{f"data__{name}": value}).exists():
                 errors.append(f"字段 {name} 值 {value!r} 已存在（唯一约束）")
+    formula_fields = [(name, spec) for name, spec in specs.items() if spec.get("type") == "formula" and spec.get("formula")]
+    if formula_fields:
+        for _ in range(len(formula_fields) + 1):
+            changed = False
+            for name, spec in formula_fields:
+                try:
+                    value = evaluate_formula(str(spec["formula"]), cleaned)
+                except (ValueError, TypeError, ZeroDivisionError, SyntaxError):
+                    continue
+                if cleaned.get(name) != value:
+                    cleaned[name] = value
+                    changed = True
+            if not changed:
+                break
+        for name, _spec in formula_fields:
+            if cleaned.get(name) is None:
+                errors.append(f"字段 {name} 公式无法计算")
     if errors:
         raise ValidationError({"detail": "; ".join(errors)})
     return cleaned
