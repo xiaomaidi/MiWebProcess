@@ -16,6 +16,7 @@ from rest_framework.response import Response
 from core.audit import snapshot_instance, write_audit_log
 from appcore.modules import module_for_model, require_module
 from core.permissions import get_app_role, is_platform_admin
+from datamodels.pdf_export import RecordPdfRenderer, pdf_response, reportlab_available
 from datamodels.import_export import (
     ImportFileError,
     RecordCsvRenderer,
@@ -520,7 +521,7 @@ def record_publish(request, model, pk: int):
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
-@renderer_classes([RecordCsvRenderer, RecordXlsxRenderer])
+@renderer_classes([RecordCsvRenderer, RecordXlsxRenderer, RecordPdfRenderer])
 def record_export(request, model):
     """GET /api/models/{model}/records/export/?format=xlsx|csv → 当前筛选结果导出。
 
@@ -532,10 +533,12 @@ def record_export(request, model):
     role, admin = _scope_context(request.user, model_obj.app)
     require_action(model_obj, role, "export", admin=admin)
     export_format = str(request.query_params.get("format") or "csv").strip().lower()
-    if export_format not in ("csv", "xlsx"):
-        raise ValidationError({"detail": "format 仅支持 csv 或 xlsx"})
+    if export_format not in ("csv", "xlsx", "pdf"):
+        raise ValidationError({"detail": "format 仅支持 csv、xlsx 或 pdf"})
     if export_format == "xlsx" and not xlsx_supported():
         raise ValidationError({"detail": "服务端未安装 openpyxl，暂不支持 Excel 导出，请改用 CSV"})
+    if export_format == "pdf" and not reportlab_available():
+        raise ValidationError({"detail": "服务端未安装 reportlab，暂不支持 PDF 导出，请使用打印视图"})
     params = {k: request.query_params.get(k) for k in request.query_params if k != "format"}
     rows = apply_row_scope(model_obj, dynamic_query(model_obj, params), request.user, admin=admin)
     specs = export_field_specs(model_obj, role, admin=admin)
@@ -545,6 +548,8 @@ def record_export(request, model):
     fallback = f"model-{model_obj.id}-records.{export_format}"
     if export_format == "xlsx":
         return xlsx_response(filename, fallback, headers, body, sheet_title=model_obj.name)
+    if export_format == "pdf":
+        return pdf_response(model_obj, specs, body, filename=filename, fallback=fallback)
     return csv_response(filename, fallback, headers, body)
 
 

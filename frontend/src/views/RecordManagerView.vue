@@ -282,9 +282,9 @@ async function downloadFile(base: string, filename: string) {
   a.click();
   URL.revokeObjectURL(url);
 }
-async function exportRecords(format: "xlsx" | "csv") {
+async function exportRecords(format: "xlsx" | "csv" | "pdf") {
   try {
-    const ext = format === "xlsx" ? "xlsx" : "csv";
+    const ext = format;
     await downloadFile(`/api/models/${modelId}/records/export/?format=${format}`, `${model.value?.name || "records"}.${ext}`);
   } catch (e: any) {
     ElMessage.error(e?.message || "导出失败");

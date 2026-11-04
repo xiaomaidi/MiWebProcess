@@ -20,6 +20,12 @@ async function appAuthConfig(appCode: string): Promise<any | null> {
 const routes = [
     { path: "/", redirect: "/admin/apps" },
     {
+      path: "/portal",
+      name: "portal",
+      component: () => import("@/views/PortalView.vue"),
+      meta: { public: true },
+    },
+    {
       path: "/login",
       name: "login",
       component: () => import("@/views/LoginView.vue"),

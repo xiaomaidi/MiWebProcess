@@ -17,7 +17,7 @@ Apache-2.0 企业能力扩展。核心平台保持开源，企业能力按应用
 ### 导入导出
 - CSV / XLSX 导入：表头支持字段名或中文 label，`append` / `upsert`，最多 20MB / 5000 行，逐行错误报告。
 - CSV / XLSX 导出：UTF-8 BOM，字段中文表头。
-- 打印 / PDF：打印友好 HTML，浏览器另存 PDF。
+- 服务端 PDF：`?format=pdf` 使用 ReportLab 直接生成 PDF；另提供打印友好 HTML。
 
 ### 运维
 - 企业运维控制台：数据库/缓存/Broker 健康、应用/用户/记录/存储 KPI、审计、失败任务/Webhook、发布失败、备份。
@@ -34,13 +34,15 @@ Apache-2.0 企业能力扩展。核心平台保持开源，企业能力按应用
 - 登录页 SSO 按钮与 `/sso/callback` 回调页。
 - client_secret 加密落库，API 永不回显。
 
-### 移动端与品牌
+### 企业门户 / 移动端
+- 对外企业门户 `/portal`：品牌首页、能力、交付方式、安全与登录入口。
 - PWA manifest / 主题色 / 图标。
 - 管理后台移动端抽屉导航。
 - Apache-2.0 许可证与 NOTICE。
 
 ## 配置入口
 
+- 企业门户：`/portal`
 - 企业运维：`/admin/enterprise`
 - 应用认证 / SSO：`/admin/apps/{id}/auth`
 - 应用服务：`/admin/apps/{id}/services`
@@ -58,5 +60,5 @@ Apache-2.0 企业能力扩展。核心平台保持开源，企业能力按应用
 - 文件存储默认本地 `media/`；生产建议切换到 S3/MinIO。
 - SSO 目前为通用 OIDC；企业微信/钉钉需再加适配层。
 - 公式聚合在应用内内存计算，适合常规业务规模。
-- PDF 走浏览器打印，不生成二进制 PDF。
+- PDF 需要服务端安装 reportlab；未安装时仍可使用打印视图。
 - 导入在单事务内逐行校验，超大文件请拆分。
