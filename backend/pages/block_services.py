@@ -377,3 +377,28 @@ def delete_block_page_if_safe(block: PageBlock) -> bool:
         return False
     page.delete()
     return True
+
+
+def rewrite_block_references(app, old_code: str, new_code: str) -> int:
+    """Rewrite wp-block reference props in all draft page schemas after code rename."""
+    if not old_code or not new_code or old_code == new_code:
+        return 0
+    changed = 0
+    for page in Page.objects.filter(app=app).exclude(type="fragment"):
+        schema = page.schema or {}
+        nodes = schema.get("nodes") or {}
+        page_changed = False
+        for node in nodes.values():
+            if not isinstance(node, dict) or node.get("type") != "wp-block":
+                continue
+            props = node.get("props") or {}
+            if str(props.get("blockCode") or props.get("block_code") or "") == old_code:
+                props["blockCode"] = new_code
+                props.pop("block_code", None)
+                node["props"] = props
+                page_changed = True
+        if page_changed:
+            page.schema = schema
+            page.save(update_fields=["schema", "updated_at"])
+            changed += 1
+    return changed

@@ -208,12 +208,16 @@ def block_detail(request, pk: int):
         raise ValidationError(errors)
 
     if new_code and new_code != block.code:
+        old_code = block.code
         try:
             sync_block_page_path(block, new_code)
         except ValidationError as exc:
             raise ValidationError({"code": exc.detail})
-        warnings.append(f"code 已变更为 {new_code}，已有 wp-block 引用需要同步更新")
         block.code = new_code
+        from .block_services import rewrite_block_references
+        changed = rewrite_block_references(app, old_code, new_code)
+        if changed:
+            warnings.append(f"已同步更新 {changed} 个页面中的区块引用")
     block.version += 1
     block.save()
     return Response({"block": _detail(block), "warnings": warnings})

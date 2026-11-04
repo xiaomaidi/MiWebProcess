@@ -11,6 +11,8 @@
       <el-button size="small" @click="coordinationOpen = true">🧩 协同</el-button>
       <el-button size="small" :loading="regenerating" @click="regeneratePage">♻️ AI 重生成</el-button>
       <el-button size="small" @click="agentOpen = true">🤖 AI 助手</el-button>
+      <el-button class="wp-d-mobile-btn" size="small" @click="mobilePanel = mobilePanel === 'left' ? '' : 'left'">面板</el-button>
+      <el-button class="wp-d-mobile-btn" size="small" @click="mobilePanel = mobilePanel === 'right' ? '' : 'right'">属性</el-button>
       <el-button size="small" type="primary" plain @click="aiOpen = true">✨ AI 生成</el-button>
     </header>
 
@@ -25,7 +27,8 @@
     />
 
     <div class="wp-d-body">
-      <aside class="wp-d-left">
+      <div v-if="mobilePanel" class="wp-d-mobile-mask" @click="mobilePanel = ''" />
+      <aside class="wp-d-left" :class="{ 'is-mobile-open': mobilePanel === 'left' }">
         <el-tabs v-model="leftTab" class="wp-d-left-tabs">
           <el-tab-pane label="组件" name="components">
             <ComponentLibrary />
@@ -55,7 +58,7 @@
         <CanvasArea />
       </main>
 
-      <aside class="wp-d-right">
+      <aside class="wp-d-right" :class="{ 'is-mobile-open': mobilePanel === 'right' }">
         <PropertyPanel
           :page="page"
           :app-id="appId"
@@ -164,6 +167,7 @@ const page = ref<PageInfo | null>(null);
 const datasources = ref<DataSourceDef[]>([]);
 const models = ref<DataModelInfo[]>([]);
 const leftTab = ref("components");
+const mobilePanel = ref<"" | "left" | "right">("");
 const publishOpen = ref(false);
 const versionsOpen = ref(false);
 const aiOpen = ref(false);
@@ -671,4 +675,17 @@ onBeforeRouteLeave(async () => {
 .wp-d-left-tabs :deep(.el-tabs__nav-scroll) { overflow: visible; }
 .wp-d-left-tabs :deep(.el-tabs__nav) { display: flex; flex-wrap: wrap; }
 .wp-d-left-tabs :deep(.el-tabs__item) { height: 30px; line-height: 30px; padding: 0 8px; font-size: 11px; }
+.wp-d-mobile-btn { display: none; }
+.wp-d-mobile-mask { display: none; }
+@media (max-width: 900px) {
+  .wp-d-mobile-btn { display: inline-flex; }
+  .wp-d-left, .wp-d-right { position: fixed; top: 0; bottom: 0; z-index: 3001; width: min(82vw, 320px); background: #fff; box-shadow: 0 0 40px rgba(15, 23, 42, 0.25); transition: transform 0.2s ease; }
+  .wp-d-left { left: 0; transform: translateX(-105%); }
+  .wp-d-right { right: 0; transform: translateX(105%); }
+  .wp-d-left.is-mobile-open, .wp-d-right.is-mobile-open { transform: translateX(0); }
+  .wp-d-mobile-mask { display: block; position: fixed; inset: 0; z-index: 3000; background: rgba(15, 23, 42, 0.4); }
+  .wp-d-header { flex-wrap: wrap; gap: 4px; }
+  .wp-d-title { font-size: 14px; }
+  .wp-d-meta { display: none; }
+}
 </style>
