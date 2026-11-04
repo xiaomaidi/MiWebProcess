@@ -110,14 +110,29 @@ const canAiWrite = computed(() =>
 
 const columns = computed(() => {
   const fields = model.value?.fields || [];
-  const cols: any[] = fields.map((f: DataModelField) => ({
-    key: f.name,
-    prop: f.name,
-    label: f.label || f.name,
-    minWidth: f.type === "json" ? 220 : 120,
-    cellType: f.type === "boolean" ? "tag" : "text",
-    ...(f.type === "boolean" ? { valueMap: { true: "是", false: "否" }, tagType: "success" } : {}),
-  }));
+  const cols: any[] = fields.map((f: DataModelField) => {
+    const optionMap = Array.isArray(f.options)
+      ? Object.fromEntries(f.options.map((o: any) => [String(o.value), o.label ?? o.value]))
+      : undefined;
+    const isImage = f.type === "image" || f.type === "signature";
+    const isFile = f.type === "file";
+    return {
+      key: f.name,
+      prop: f.name,
+      label: f.label || f.name,
+      minWidth: ["json", "geolocation", "longtext", "richtext"].includes(f.type) ? 220 : 120,
+      cellType: isImage ? "image" : isFile ? "link" : ["boolean", "select", "color"].includes(f.type) ? "tag" : "text",
+      hrefField: isFile ? f.name : undefined,
+      target: isFile ? "_blank" : undefined,
+      ...(f.type === "boolean"
+        ? { valueMap: { true: "是", false: "否" }, tagType: "success" }
+        : optionMap
+          ? { valueMap: optionMap }
+          : {}),
+      prefix: f.type === "money" ? "¥" : undefined,
+      suffix: f.type === "percent" ? "%" : f.unit || undefined,
+    };
+  });
   const hasPublish = fields.some((f) => f.name === "status");
   const actions: any[] = [{ label: "编辑", kind: "edit", type: "primary" }];
   if (hasPublish) {

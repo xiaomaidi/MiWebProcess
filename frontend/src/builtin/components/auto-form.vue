@@ -13,60 +13,68 @@
         <el-col v-for="field in visibleFields" :key="field.name" :span="spanOf(field)">
           <el-form-item :label="field.label || field.name" :prop="field.name">
             <RichText
-              v-if="field.ui === 'richtext'"
+              v-if="field.ui === 'richtext' || field.type === 'richtext'"
               v-model="values[field.name]"
               :height="220"
               :placeholder="field.description || `请输入${field.label || field.name}`"
             />
             <el-input
-              v-else-if="field.type === 'string' && field.ui !== 'textarea'"
-              v-model="values[field.name]"
-              :placeholder="field.description || `请输入${field.label || field.name}`"
-              clearable
-            />
-            <el-input
-              v-else-if="field.type === 'string'"
+              v-else-if="['longtext', 'json', 'geolocation', 'references', 'signature'].includes(field.type) || field.ui === 'textarea'"
               v-model="values[field.name]"
               type="textarea"
-              :rows="5"
-              :placeholder="field.description || `请输入${field.label || field.name}`"
+              :rows="field.type === 'json' || field.type === 'geolocation' ? 5 : 3"
+              :placeholder="field.placeholder || field.description || `请输入${field.label || field.name}`"
             />
-            <el-input-number
-              v-else-if="field.type === 'number'"
+            <el-select
+              v-else-if="['select', 'multiselect', 'tags'].includes(field.type)"
               v-model="values[field.name]"
+              :multiple="field.type !== 'select'"
+              filterable
+              clearable
+              allow-create
+              style="width: 100%"
+            >
+              <el-option v-for="o in field.options || []" :key="String(o.value)" :label="o.label" :value="o.value" />
+            </el-select>
+            <el-input-number
+              v-else-if="['number', 'integer', 'decimal', 'money', 'percent'].includes(field.type)"
+              v-model="values[field.name]"
+              :precision="field.precision"
+              :min="field.min"
+              :max="field.max"
               controls-position="right"
               style="width: 100%"
             />
+            <el-rate v-else-if="field.type === 'rating'" v-model="values[field.name]" />
             <el-switch v-else-if="field.type === 'boolean'" v-model="values[field.name]" />
             <el-date-picker
-              v-else-if="field.type === 'date'"
+              v-else-if="['date', 'datetime', 'time'].includes(field.type)"
               v-model="values[field.name]"
-              type="date"
-              value-format="YYYY-MM-DD"
+              :type="field.type === 'datetime' ? 'datetime' : field.type"
+              :value-format="field.type === 'date' ? 'YYYY-MM-DD' : field.type === 'time' ? 'HH:mm:ss' : 'YYYY-MM-DD HH:mm:ss'"
               style="width: 100%"
             />
-            <el-select
-              v-else-if="field.type === 'reference' && field.options?.length"
-              v-model="values[field.name]"
-              filterable
-              clearable
-              style="width: 100%"
-            >
-              <el-option v-for="o in field.options" :key="String(o.value)" :label="o.label" :value="o.value" />
-            </el-select>
+            <el-color-picker v-else-if="field.type === 'color'" v-model="values[field.name]" />
             <el-input-number
-              v-else-if="field.type === 'reference'"
+              v-else-if="['user', 'department'].includes(field.type)"
               v-model="values[field.name]"
               :min="1"
               controls-position="right"
               style="width: 100%"
             />
             <el-input
+              v-else-if="['image', 'file', 'barcode', 'duration'].includes(field.type)"
+              v-model="values[field.name]"
+              :placeholder="field.type === 'image' || field.type === 'file' ? '文件 URL' : field.placeholder || '请输入'"
+              clearable
+            />
+            <el-input
               v-else
               v-model="values[field.name]"
-              type="textarea"
-              :rows="3"
-              placeholder="JSON"
+              :type="field.type === 'password' ? 'password' : 'text'"
+              :show-password="field.type === 'password'"
+              :placeholder="field.placeholder || field.description || `请输入${field.label || field.name}`"
+              clearable
             />
           </el-form-item>
         </el-col>
@@ -152,7 +160,7 @@ const effectiveFields = computed<DataModelField[]>(() =>
 );
 const visibleFields = computed(() => {
   const hidden = new Set(props.hiddenFields || []);
-  return effectiveFields.value.filter((f) => !hidden.has(f.name));
+  return effectiveFields.value.filter((f) => !hidden.has(f.name) && !["created_at", "updated_at"].includes(f.type));
 });
 const labelWidthValue = computed(() => props.labelWidth);
 const normalizedColumns = computed(() => {

@@ -331,15 +331,28 @@ const rows = computed<Record<string, any>[]>(() => {
 });
 
 const autoColumnDefs = computed<ColumnDef[]>(() =>
-  modelFields.value.map((f) => ({
-    key: f.name,
-    prop: f.name,
-    label: f.label || f.name,
-    width: f.type === "boolean" ? 90 : undefined,
-    cellType: f.type === "boolean" ? "tag" : "text",
-    valueMap: f.type === "boolean" ? { true: "是", false: "否" } : undefined,
-    tagType: f.type === "boolean" ? "success" : undefined,
-  }))
+  modelFields.value.map((f) => {
+    const optionMap = Array.isArray(f.options)
+      ? Object.fromEntries(f.options.map((o: any) => [String(o.value), o.label ?? o.value]))
+      : undefined;
+    const isImage = f.type === "image" || f.type === "signature";
+    const isFile = f.type === "file";
+    const isTag = ["boolean", "select", "color"].includes(f.type);
+    return {
+      key: f.name,
+      prop: f.name,
+      label: f.label || f.name,
+      width: f.type === "boolean" ? 90 : isImage ? 90 : isFile ? 150 : undefined,
+      cellType: isImage ? "image" : isFile ? "link" : isTag ? "tag" : "text",
+      hrefField: isFile ? f.name : undefined,
+      target: isFile ? "_blank" : undefined,
+      valueMap: f.type === "boolean" ? { true: "是", false: "否" } : optionMap,
+      tagType: f.type === "boolean" ? "success" : f.type === "color" ? "info" : undefined,
+      prefix: f.type === "money" ? "¥" : undefined,
+      suffix: f.type === "percent" ? "%" : f.unit || undefined,
+      sortable: true,
+    };
+  })
 );
 
 const resolvedColumns = computed<ColumnDef[]>(() => {

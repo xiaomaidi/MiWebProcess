@@ -389,12 +389,23 @@ export interface WorkflowInstance {
 export interface DataModelField {
   name: string;
   label?: string;
-  type: "string" | "number" | "boolean" | "date" | "json" | "reference";
+  type: string;
   required?: boolean;
   default?: any;
   unique?: boolean;
   description?: string;
   ref_model?: string;
+  min?: number;
+  max?: number;
+  precision?: number;
+  currency?: string;
+  max_length?: number;
+  accept?: string;
+  multiple?: boolean;
+  ref_display?: string;
+  placeholder?: string;
+  format?: string;
+  unit?: string;
   /** 可选：数据模型字段上的额外校验规则（Element Plus FormItem rules 结构）。 */
   rules?: Record<string, any>[];
   /** reference 字段的可选选项。 */

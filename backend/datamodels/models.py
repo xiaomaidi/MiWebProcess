@@ -2,7 +2,16 @@ from django.conf import settings
 from django.db import models
 
 
-FIELD_TYPES = ("string", "number", "boolean", "date", "json", "reference")
+FIELD_TYPES = (
+    "string", "longtext", "richtext", "email", "phone", "url", "password",
+    "select", "multiselect", "tags",
+    "number", "integer", "decimal", "money", "percent",
+    "boolean", "date", "datetime", "time", "duration",
+    "json", "reference", "references",
+    "image", "file", "user", "department",
+    "auto_number", "formula", "created_at", "updated_at",
+    "geolocation", "signature", "barcode", "rating", "color",
+)
 
 # 数据范围：全部 / 仅本人 / 本部门 / 本部门及子部门
 DATA_SCOPES = ("all", "owner", "dept", "dept_and_children")

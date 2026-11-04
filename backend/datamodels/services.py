@@ -11,6 +11,9 @@ from .models import FIELD_TYPES, DataModel, DataRecord
 
 NAME_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2}(\.\d+)?)?)?(Z|[+-]\d{2}:\d{2})?$")
+TIME_RE = re.compile(r"^\d{2}:\d{2}(:\d{2})?$")
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+PHONE_RE = re.compile(r"^[+\d][\d\s-]{5,24}$")
 
 
 def validate_fields_spec(fields: list, app=None) -> list:
@@ -32,11 +35,15 @@ def validate_fields_spec(fields: list, app=None) -> list:
         if ftype not in FIELD_TYPES:
             raise ValidationError({"detail": f"字段 {name} 类型非法: {ftype}（允许 {FIELD_TYPES}）"})
         ref_model = f.get("ref_model")
-        if ftype == "reference":
+        if ftype in ("reference", "references"):
             if not ref_model:
-                raise ValidationError({"detail": f"字段 {name} 为 reference 类型需要 ref_model"})
+                raise ValidationError({"detail": f"字段 {name} 为 {ftype} 类型需要 ref_model"})
             if app and not DataModel.objects.filter(app=app, name=ref_model).exists():
                 raise ValidationError({"detail": f"字段 {name} 的 ref_model {ref_model} 不存在"})
+        if ftype in ("select", "multiselect", "tags"):
+            options = f.get("options")
+            if not isinstance(options, list) or not options:
+                raise ValidationError({"detail": f"字段 {name} 为 {ftype} 类型需要 options"})
         item = {
             "name": name,
             "type": ftype,
@@ -51,16 +58,25 @@ def validate_fields_spec(fields: list, app=None) -> list:
         if isinstance(f.get("rules"), list):
             item["rules"] = [r for r in f["rules"] if isinstance(r, dict)]
         if isinstance(f.get("options"), list):
-            item["options"] = [o for o in f["options"] if isinstance(o, dict)]
+            normalized_options = []
+            for option in f["options"]:
+                if isinstance(option, dict):
+                    normalized_options.append(option)
+                elif isinstance(option, (str, int, float)):
+                    normalized_options.append({"label": str(option), "value": option})
+            item["options"] = normalized_options
+        for key in ("min", "max", "precision", "currency", "max_length", "accept", "multiple", "ref_display", "placeholder", "format", "unit"):
+            if f.get(key) is not None:
+                item[key] = f[key]
         if isinstance(f.get("read_roles"), list):
             item["read_roles"] = [r for r in f["read_roles"] if r in ("viewer", "editor", "owner")]
         if isinstance(f.get("write_roles"), list):
             item["write_roles"] = [r for r in f["write_roles"] if r in ("viewer", "editor", "owner")]
         if isinstance(f.get("mask_roles"), list):
             item["mask_roles"] = [r for r in f["mask_roles"] if r in ("viewer", "editor", "owner")]
-        if f.get("ui") in ("text", "textarea", "richtext", "select", "date"):
+        if f.get("ui") in ("text", "textarea", "richtext", "select", "multi-select", "date", "datetime", "time", "number", "switch", "image", "file", "color", "rating"):
             item["ui"] = f["ui"]
-        if ftype == "reference":
+        if ftype in ("reference", "references"):
             item["ref_model"] = str(ref_model)
         out.append(item)
     return out
@@ -69,18 +85,36 @@ def validate_fields_spec(fields: list, app=None) -> list:
 def _check_type(value: Any, ftype: str, field_name: str) -> bool:
     if value is None:
         return True
-    if ftype == "string":
+    if ftype in ("string", "longtext", "richtext", "email", "phone", "url", "password", "image", "file", "signature", "barcode", "color", "auto_number"):
         return isinstance(value, str)
-    if ftype == "number":
+    if ftype == "select":
+        return isinstance(value, (str, int, float)) and not isinstance(value, bool)
+    if ftype in ("number", "decimal", "money", "percent", "rating"):
         return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if ftype == "integer":
+        return isinstance(value, int) and not isinstance(value, bool)
     if ftype == "boolean":
         return isinstance(value, bool)
-    if ftype == "date":
+    if ftype in ("date", "datetime"):
         return isinstance(value, str) and bool(DATE_RE.match(value))
+    if ftype == "time":
+        return isinstance(value, str) and bool(TIME_RE.match(value))
+    if ftype == "duration":
+        return isinstance(value, (str, int, float)) and not isinstance(value, bool)
     if ftype == "json":
         return isinstance(value, (dict, list))
     if ftype == "reference":
         return isinstance(value, int) and not isinstance(value, bool) and value > 0
+    if ftype == "references":
+        return isinstance(value, list) and all(isinstance(v, int) and not isinstance(v, bool) and v > 0 for v in value)
+    if ftype in ("multiselect", "tags"):
+        return isinstance(value, list) and all(isinstance(v, (str, int, float)) for v in value)
+    if ftype in ("user", "department"):
+        return isinstance(value, int) and not isinstance(value, bool) and value > 0
+    if ftype == "geolocation":
+        return isinstance(value, dict) and "lat" in value and "lng" in value
+    if ftype in ("formula", "created_at", "updated_at"):
+        return True
     return True
 
 
@@ -261,6 +295,12 @@ def validate_data(
 
     for name, spec in specs.items():
         value = data.get(name)
+        if value is None and spec.get("type") == "auto_number":
+            value = f"{model.name[:6].upper()}-{model.records.count() + 1:04d}"
+            cleaned[name] = value
+        if value is None and spec.get("type") in ("created_at", "updated_at"):
+            value = datetime.now().astimezone().isoformat()
+            cleaned[name] = value
         if value is None:
             if spec.get("default") is not None:
                 cleaned[name] = spec["default"]
@@ -272,13 +312,32 @@ def validate_data(
         if not _check_type(value, spec["type"], name):
             errors.append(f"字段 {name} 类型应为 {spec['type']}")
             continue
-        if spec["type"] == "reference":
+        if spec["type"] in ("reference", "references"):
             target_name = spec.get("ref_model")
             target = DataModel.objects.filter(name=target_name, app=model.app).first()
             if target is None:
                 errors.append(f"字段 {name} 的引用模型 {target_name} 不存在")
-            elif not DataRecord.objects.filter(model=target, id=value).exists():
+            elif spec["type"] == "reference" and not DataRecord.objects.filter(model=target, id=value).exists():
                 errors.append(f"字段 {name} 引用的记录 {value} 不存在")
+            elif spec["type"] == "references":
+                missing = [v for v in value if not DataRecord.objects.filter(model=target, id=v).exists()]
+                if missing:
+                    errors.append(f"字段 {name} 引用的记录不存在: {missing}")
+        if spec.get("max_length") and isinstance(value, str) and len(value) > int(spec["max_length"]):
+            errors.append(f"字段 {name} 超过最大长度 {spec['max_length']}")
+        if spec.get("min") is not None and isinstance(value, (int, float)) and value < spec["min"]:
+            errors.append(f"字段 {name} 小于最小值 {spec['min']}")
+        if spec.get("max") is not None and isinstance(value, (int, float)) and value > spec["max"]:
+            errors.append(f"字段 {name} 大于最大值 {spec['max']}")
+        if spec["type"] == "email" and not EMAIL_RE.match(str(value)):
+            errors.append(f"字段 {name} 邮箱格式不正确")
+        if spec["type"] == "phone" and not PHONE_RE.match(str(value)):
+            errors.append(f"字段 {name} 手机号格式不正确")
+        if spec["type"] in ("select", "multiselect", "tags"):
+            allowed = [str(o.get("value")) for o in (spec.get("options") or []) if isinstance(o, dict)]
+            vals = value if isinstance(value, list) else [value]
+            if allowed and any(str(v) not in allowed for v in vals):
+                errors.append(f"字段 {name} 的值不在可选项内")
         if spec.get("unique") and value is not None:
             qs = DataRecord.objects.filter(model=model)
             if exclude_pk is not None:
@@ -305,7 +364,7 @@ def dynamic_query(model: DataModel, params: dict) -> list[dict]:
         if raw is None:
             return raw
         try:
-            if ftype in ("number", "reference"):
+            if ftype in ("number", "integer", "decimal", "money", "percent", "rating", "reference", "user", "department"):
                 text = str(raw).strip()
                 number = float(text)
                 return int(number) if number.is_integer() else number

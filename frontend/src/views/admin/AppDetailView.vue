@@ -357,13 +357,57 @@
               </el-table-column>
               <el-table-column label="类型" width="110">
                 <template #default="{ row }">
-                  <el-select v-model="row.type" size="small" style="width: 100%">
-                    <el-option label="文本" value="string" />
-                    <el-option label="数字" value="number" />
-                    <el-option label="布尔" value="boolean" />
-                    <el-option label="日期" value="date" />
-                    <el-option label="JSON" value="json" />
-                    <el-option label="引用" value="reference" />
+                  <el-select v-model="row.type" size="small" style="width: 100%" @change="onFieldTypeChange(row)">
+                    <el-option-group label="文本">
+                      <el-option label="短文本" value="string" />
+                      <el-option label="长文本" value="longtext" />
+                      <el-option label="富文本" value="richtext" />
+                      <el-option label="邮箱" value="email" />
+                      <el-option label="手机号" value="phone" />
+                      <el-option label="URL" value="url" />
+                      <el-option label="密码" value="password" />
+                      <el-option label="颜色" value="color" />
+                    </el-option-group>
+                    <el-option-group label="选择">
+                      <el-option label="单选" value="select" />
+                      <el-option label="多选" value="multiselect" />
+                      <el-option label="标签" value="tags" />
+                      <el-option label="评分" value="rating" />
+                    </el-option-group>
+                    <el-option-group label="数字">
+                      <el-option label="数字" value="number" />
+                      <el-option label="整数" value="integer" />
+                      <el-option label="小数" value="decimal" />
+                      <el-option label="金额" value="money" />
+                      <el-option label="百分比" value="percent" />
+                      <el-option label="布尔" value="boolean" />
+                    </el-option-group>
+                    <el-option-group label="日期时间">
+                      <el-option label="日期" value="date" />
+                      <el-option label="日期时间" value="datetime" />
+                      <el-option label="时间" value="time" />
+                      <el-option label="时长" value="duration" />
+                    </el-option-group>
+                    <el-option-group label="关联">
+                      <el-option label="引用一条" value="reference" />
+                      <el-option label="引用多条" value="references" />
+                      <el-option label="用户" value="user" />
+                      <el-option label="部门" value="department" />
+                    </el-option-group>
+                    <el-option-group label="文件">
+                      <el-option label="图片" value="image" />
+                      <el-option label="附件" value="file" />
+                      <el-option label="签名" value="signature" />
+                    </el-option-group>
+                    <el-option-group label="系统">
+                      <el-option label="自动编号" value="auto_number" />
+                      <el-option label="公式" value="formula" />
+                      <el-option label="创建时间" value="created_at" />
+                      <el-option label="更新时间" value="updated_at" />
+                      <el-option label="JSON" value="json" />
+                      <el-option label="地理位置" value="geolocation" />
+                      <el-option label="条码/二维码" value="barcode" />
+                    </el-option-group>
                   </el-select>
                 </template>
               </el-table-column>
@@ -382,6 +426,11 @@
                     <el-option v-for="m in models" :key="m.id" :label="m.name" :value="m.name" />
                   </el-select>
                   <span v-else class="wp-muted-cell">—</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="配置" width="76" align="center">
+                <template #default="{ row }">
+                  <el-button size="small" text type="primary" @click="openFieldConfig(row)">配置</el-button>
                 </template>
               </el-table-column>
               <el-table-column label="必填" width="64">
@@ -427,6 +476,39 @@
       <template #footer>
         <el-button @click="dlg.model = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="saveModel">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="fieldConfigVisible" title="字段配置" width="560px">
+      <el-form label-position="top">
+        <el-form-item label="选项 JSON（单选/多选/标签必填）">
+          <el-input v-model="fieldConfig.optionsText" type="textarea" :rows="4" placeholder='[{"label":"启用","value":"active"}]' />
+        </el-form-item>
+        <div class="wp-field-config-grid">
+          <el-form-item label="最小值">
+            <el-input-number v-model="fieldConfig.min" :controls="false" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="最大值">
+            <el-input-number v-model="fieldConfig.max" :controls="false" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="最大长度">
+            <el-input-number v-model="fieldConfig.maxLength" :min="0" :controls="false" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="小数位">
+            <el-input-number v-model="fieldConfig.precision" :min="0" :max="6" :controls="false" style="width: 100%" />
+          </el-form-item>
+        </div>
+        <el-form-item label="提示文字">
+          <el-input v-model="fieldConfig.placeholder" placeholder="输入提示" />
+        </el-form-item>
+        <el-form-item label="唯一值">
+          <el-switch v-model="fieldConfig.unique" />
+          <span class="wp-muted-cell" style="margin-left: 8px">保存时检查该字段值是否重复</span>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="fieldConfigVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveFieldConfig">保存配置</el-button>
       </template>
     </el-dialog>
 
@@ -593,8 +675,52 @@ const modelFieldsDraft = ref<any[]>([]);
 function addModelField() {
   modelFieldsDraft.value.push({ name: "", label: "", type: "string", required: false, read_roles: [], write_roles: [], mask_roles: [] });
 }
+function onFieldTypeChange(row: any) {
+  if (["select", "multiselect", "tags"].includes(row.type) && (!Array.isArray(row.options) || !row.options.length)) {
+    row.options = [{ label: "选项一", value: "option1" }, { label: "选项二", value: "option2" }];
+  }
+  if (["reference", "references"].includes(row.type) && !row.ref_model && models.value.length) {
+    row.ref_model = models.value[0].name;
+  }
+}
+function openFieldConfig(row: any) {
+  fieldConfigTarget.value = row;
+  fieldConfig.optionsText = JSON.stringify(row.options || [], null, 2);
+  fieldConfig.min = row.min ?? null;
+  fieldConfig.max = row.max ?? null;
+  fieldConfig.maxLength = row.max_length ?? null;
+  fieldConfig.precision = row.precision ?? null;
+  fieldConfig.placeholder = row.placeholder || "";
+  fieldConfig.unique = !!row.unique;
+  fieldConfigVisible.value = true;
+}
+function saveFieldConfig() {
+  const row = fieldConfigTarget.value;
+  if (!row) return;
+  let options: any[];
+  try {
+    const parsed = fieldConfig.optionsText.trim() ? JSON.parse(fieldConfig.optionsText) : [];
+    options = Array.isArray(parsed)
+      ? parsed.map((item: any) => (item && typeof item === "object" ? item : { label: String(item), value: item }))
+      : [];
+  } catch {
+    ElMessage.error("选项 JSON 格式不正确");
+    return;
+  }
+  row.options = options;
+  row.min = fieldConfig.min ?? undefined;
+  row.max = fieldConfig.max ?? undefined;
+  row.max_length = fieldConfig.maxLength ?? undefined;
+  row.precision = fieldConfig.precision ?? undefined;
+  row.placeholder = fieldConfig.placeholder || undefined;
+  row.unique = fieldConfig.unique;
+  fieldConfigVisible.value = false;
+}
 let modelEditingId: number | null = null;
 const modelDetailFields = ref<{ name: string; type: string; required?: boolean; default?: any; description?: string }[]>([]);
+const fieldConfigVisible = ref(false);
+const fieldConfigTarget = ref<any>(null);
+const fieldConfig = reactive({ optionsText: "", min: null as number | null, max: null as number | null, maxLength: null as number | null, precision: null as number | null, placeholder: "", unique: false });
 const memberForm = reactive({ user_id: 1, role: "editor" as AppMember["role"] });
 const roleTarget = reactive<{ user_id: number; role: AppMember["role"] }>({ user_id: 0, role: "viewer" });
 const trafficTarget = reactive<{ id: number; ratio: number }>({ id: 0, ratio: 100 });
@@ -1378,4 +1504,6 @@ onMounted(() => {
 .app-detail-stat small { color: #94a3b8; font-size: 10px; }
 .app-detail-stat .is-status { padding-top: 4px; }
 @media (max-width: 900px) { .app-detail-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.wp-field-config-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 10px; }
+@media (max-width: 700px) { .wp-field-config-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style>
