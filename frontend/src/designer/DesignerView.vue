@@ -14,6 +14,8 @@
       <el-button class="wp-d-mobile-btn" size="small" @click="mobilePanel = mobilePanel === 'left' ? '' : 'left'">面板</el-button>
       <el-button class="wp-d-mobile-btn" size="small" @click="mobilePanel = mobilePanel === 'right' ? '' : 'right'">属性</el-button>
       <el-button size="small" type="primary" plain @click="aiOpen = true">✨ AI 生成</el-button>
+      <CollabPresence />
+      <el-button size="small" @click="debugOpen = true">调试</el-button>
     </header>
 
     <DesignerToolbar
