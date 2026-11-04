@@ -25,7 +25,7 @@ import { computed, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { api } from "@/api";
 import { useSchemaStore } from "@/store/schema";
-import { auditPage, auditSummary } from "../audit";
+import { auditPage, auditSummary } from "../quality";
 
 const props = defineProps<{ modelValue: boolean; pageId: number }>();
 const emit = defineEmits<{ (e: "update:modelValue", v: boolean): void; (e: "published", info: { version: number; changelog?: string }): void }>();
@@ -39,7 +39,10 @@ const changelog = ref("");
 const busy = ref(false);
 const schemaStore = useSchemaStore();
 const issues = computed(() => auditPage(schemaStore.schema));
-const summary = computed(() => auditSummary(issues.value));
+const summary = computed(() => {
+  const value = auditSummary(issues.value);
+  return { error: value.error, warning: value.warn, total: value.total };
+});
 
 async function publish() {
   if (!props.pageId) return;

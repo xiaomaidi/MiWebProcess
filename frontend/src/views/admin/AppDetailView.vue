@@ -937,7 +937,7 @@ async function loadPages() {
   loadingPages.value = true;
   try {
     const data = await api.get<unknown>(`/apps/${appId.value}/pages/?page=1&size=100`);
-    pages.value = asList<PageInfo>(data);
+    pages.value = asList<PageInfo>(data).filter((page) => page.type !== "fragment");
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : "加载页面失败");
   } finally {

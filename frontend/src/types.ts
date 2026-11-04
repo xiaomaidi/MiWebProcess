@@ -280,7 +280,7 @@ export interface PageInfo {
   app_id: number;
   name: string;
   path: string;
-  type: "page" | "layout" | "popup";
+  type: "page" | "layout" | "popup" | "fragment";
   status: string;
   version: number;
   schema_version: number;

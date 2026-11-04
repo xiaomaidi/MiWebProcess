@@ -254,7 +254,7 @@ def runtime_ssr_rebuild(request, app_code: str):
     _require_member(request.user, app, "owner")
     output = Path(getattr(settings, "PRERENDER_DIR", ""))
     results, errors = [], []
-    for page in Page.objects.filter(app=app, status="published")[:50]:
+    for page in Page.objects.filter(app=app, status="published").exclude(type="fragment")[:50]:
         targets = page_targets(page)
         if not targets:
             continue

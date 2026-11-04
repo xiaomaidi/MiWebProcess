@@ -12,7 +12,7 @@ from releases.models import Release, ReleaseTask
 def compile_bundle(app) -> dict:
     """把已发布页面的 PageVersion 快照汇总为 bundle。"""
     pages: dict = {}
-    for page in app.pages.all():
+    for page in app.pages.exclude(type="fragment"):
         last = page.versions.order_by("-version").first()
         if last is None:
             continue
@@ -98,7 +98,7 @@ def run_compile_pipeline(release_id: int) -> bool:
         if not bundle["pages"]:
             raise RuntimeError("没有可发布的已发布页面")
         page_versions = {}
-        for page in release.app.pages.all():
+        for page in release.app.pages.exclude(type="fragment"):
             last = page.versions.order_by("-version").first()
             if last is not None:
                 page_versions[str(page.id)] = last.id
