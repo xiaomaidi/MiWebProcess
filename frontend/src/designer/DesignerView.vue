@@ -54,8 +54,9 @@
         </el-tabs>
       </aside>
 
-      <main class="wp-d-canvas">
+      <main class="wp-d-canvas" @pointermove="onCollabPointerMove">
         <CanvasArea />
+        <CollabCursors />
       </main>
 
       <aside class="wp-d-right" :class="{ 'is-mobile-open': mobilePanel === 'right' }">
@@ -80,6 +81,9 @@
     />
     <PublishDialog v-model="publishOpen" :page-id="pageId" @published="onPublished" />
     <VersionsDialog v-model="versionsOpen" :page-id="pageId" @rolled-back="onRolledBack" />
+    <el-drawer v-model="debugOpen" title="交互调试" size="460px">
+      <DesignerDebuggerPanel />
+    </el-drawer>
 
     <el-dialog v-model="diffOpen" title="AI 变更差异" width="760px" @open="loadDiff">
       <div v-if="diffLoading" class="wp-diff-tip">正在计算差异…</div>
@@ -139,6 +143,10 @@ import { asList, commit, withHistory } from "./util";
 import DesignerToolbar from "./components/DesignerToolbar.vue";
 import ComponentLibrary from "./components/ComponentLibrary.vue";
 import MediaLibraryPanel from "./components/MediaLibraryPanel.vue";
+import CollabPresence from "./components/CollabPresence.vue";
+import CollabCursors from "./components/CollabCursors.vue";
+import DesignerDebuggerPanel from "./components/DesignerDebuggerPanel.vue";
+import { connectDesignerCollab, disconnectDesignerCollab, sendCollabCursor, sendCollabSelection } from "./collab";
 import BlockLibrary from "./components/BlockLibrary.vue";
 import OutlinePanel from "./components/OutlinePanel.vue";
 import DatasourcePanel from "./components/DatasourcePanel.vue";
@@ -168,6 +176,7 @@ const datasources = ref<DataSourceDef[]>([]);
 const models = ref<DataModelInfo[]>([]);
 const leftTab = ref("components");
 const mobilePanel = ref<"" | "left" | "right">("");
+const debugOpen = ref(false);
 const publishOpen = ref(false);
 const versionsOpen = ref(false);
 const aiOpen = ref(false);
@@ -531,7 +540,20 @@ watch(
   }
 );
 
+function onCollabPointerMove(event: PointerEvent) {
+  const rect = (event.currentTarget as HTMLElement | null)?.getBoundingClientRect();
+  if (!rect) return;
+  sendCollabCursor(event.clientX - rect.left, event.clientY - rect.top);
+}
+
+watch(
+  () => [...schema.selectedIds],
+  (ids) => sendCollabSelection(ids),
+  { deep: true }
+);
+
 onMounted(async () => {
+  connectDesignerCollab(appId, pageId);
   await loadAll();
   await checkLocalDraft();
   startAutosave();
@@ -547,6 +569,7 @@ function onBeforeUnload(e: BeforeUnloadEvent) {
 }
 window.addEventListener("beforeunload", onBeforeUnload);
 onBeforeUnmount(() => {
+  disconnectDesignerCollab();
   stopAutosave();
   saveLocalDraft(true);
   window.removeEventListener("beforeunload", onBeforeUnload);
@@ -659,6 +682,7 @@ onBeforeRouteLeave(async () => {
   overflow: auto;
 }
 .wp-d-canvas {
+  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
