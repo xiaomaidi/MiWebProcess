@@ -36,6 +36,12 @@
           <el-tab-pane label="数据源" name="datasources">
             <DatasourcePanel :datasources="datasources" :app-id="appId" @refresh="reloadDatasources" />
           </el-tab-pane>
+          <el-tab-pane label="区块" name="blocks">
+            <BlockLibrary v-if="page" :app-id="appId" :page-id="page.id" @insert="onBlockInsert" />
+          </el-tab-pane>
+          <el-tab-pane label="素材" name="media">
+            <MediaLibraryPanel :app-id="appId" @insert="insertAsset" />
+          </el-tab-pane>
           <el-tab-pane label="变量" name="variables">
             <VariablePanel />
           </el-tab-pane>
@@ -129,6 +135,8 @@ import type { ComponentMeta, DataModelInfo, DataSourceDef, PageSchema, PageInfo 
 import { asList, commit, withHistory } from "./util";
 import DesignerToolbar from "./components/DesignerToolbar.vue";
 import ComponentLibrary from "./components/ComponentLibrary.vue";
+import MediaLibraryPanel from "./components/MediaLibraryPanel.vue";
+import BlockLibrary from "./components/BlockLibrary.vue";
 import OutlinePanel from "./components/OutlinePanel.vue";
 import DatasourcePanel from "./components/DatasourcePanel.vue";
 import VariablePanel from "./components/VariablePanel.vue";
@@ -218,6 +226,32 @@ function pasteTarget(): string {
     return schema.parentOf(selected.id) || s.rootId;
   }
   return s.rootId;
+}
+
+function onBlockInsert(payload: any) {
+  const blockNode = payload?.node;
+  if (!blockNode) return;
+  const rootId = schema.schema?.rootId;
+  if (!rootId) return;
+  withHistory("插入复用区块", () => {
+    const parentId = schema.selectedId && schema.selectedId !== rootId ? schema.selectedId : rootId;
+    const id = schema.insertComponent("wp-block", parentId, -1);
+    const current = schema.node(id);
+    if (current) {
+      current.props = { ...(blockNode.props || {}) };
+      current.style = { ...(blockNode.style || {}) };
+    }
+  });
+}
+
+function insertAsset(asset: any) {
+  const rootId = schema.schema?.rootId;
+  if (!rootId || !asset?.url) return;
+  withHistory("插入素材", () => {
+    const id = schema.insertComponent("wp-image", rootId, -1);
+    const node = schema.node(id);
+    if (node) node.props = { ...(node.props || {}), src: asset.url, alt: asset.name || "" };
+  });
 }
 
 // 快捷键：Ctrl+S 保存、Ctrl+Z 撤销、Ctrl+Shift+Z / Ctrl+Y 重做、Delete、复制粘贴。
@@ -632,4 +666,9 @@ onBeforeRouteLeave(async () => {
   overflow: auto;
   flex-shrink: 0;
 }
+/* 左侧面板功能增多后允许标签换行，避免“区块/素材/变量/协同”被箭头藏住 */
+.wp-d-left-tabs :deep(.el-tabs__nav-wrap),
+.wp-d-left-tabs :deep(.el-tabs__nav-scroll) { overflow: visible; }
+.wp-d-left-tabs :deep(.el-tabs__nav) { display: flex; flex-wrap: wrap; }
+.wp-d-left-tabs :deep(.el-tabs__item) { height: 30px; line-height: 30px; padding: 0 8px; font-size: 11px; }
 </style>

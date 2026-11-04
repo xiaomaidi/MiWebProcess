@@ -32,6 +32,26 @@ export const useSchemaStore = defineStore("schema", {
     layoutMode: (s) => s.schema?.layout?.mode || "flow",
     selectedNodes: (s): SchemaNode[] =>
       s.selectedIds.map((id) => s.schema?.nodes[id]).filter((n): n is SchemaNode => !!n),
+    /** 去掉已被选中祖先包含的节点，避免组合 / 对齐 / 拖动时重复处理子树。 */
+    topLevelSelectedIds: (s): string[] => {
+      if (!s.schema) return [];
+      const selected = new Set(s.selectedIds);
+      const parent = new Map<string, string>();
+      for (const [pid, p] of Object.entries(s.schema.nodes)) {
+        for (const c of p.children || []) parent.set(c, pid);
+        for (const list of Object.values(p.slots || {})) for (const c of list) parent.set(c, pid);
+      }
+      return s.selectedIds.filter((id) => {
+        let p = parent.get(id);
+        const seen = new Set<string>();
+        while (p && !seen.has(p)) {
+          if (selected.has(p)) return false;
+          seen.add(p);
+          p = parent.get(p);
+        }
+        return true;
+      });
+    },
     isSelected: (s) => (id: string) => s.selectedIds.includes(id),
     parentOf: (s) => (id: string): string | null => {
       if (!s.schema) return null;
@@ -138,6 +158,8 @@ export const useSchemaStore = defineStore("schema", {
     removeNode(id: string) {
       const s = this.schema;
       if (!s || id === s.rootId) return;
+      // 锁定节点（或锁定祖先 / 含锁定后代）禁止删除，保证锁定语义可靠。
+      if (this.isNodeLocked(id) || this.subtreeHasLocked(id)) return;
       // 从父节点摘除
       for (const p of Object.values(s.nodes)) {
         if (p.children?.includes(id)) p.children = p.children.filter((x) => x !== id);
@@ -163,6 +185,8 @@ export const useSchemaStore = defineStore("schema", {
     moveNode(id: string, newParentId: string, index: number) {
       const s = this.schema;
       if (!s || id === s.rootId || !s.nodes[id]) return;
+      // 锁定节点 / 锁定容器内的子节点不允许移动或重排。
+      if (this.isNodeLocked(id) || this.isNodeLocked(newParentId)) return;
       const findParent = (nid: string): { parentId: string; slotKey?: string } | null => {
         for (const [pid, p] of Object.entries(s.nodes)) {
           if (p.children?.includes(nid)) return { parentId: pid };
@@ -178,6 +202,36 @@ export const useSchemaStore = defineStore("schema", {
       while (cur) {
         if (cur === id) return;
         cur = findParent(cur)?.parentId;
+      }
+      if (!s.nodes[newParentId]) return;
+      // free 模式跨父级移动时保持页面视觉位置：把旧父级偏移换算到新父级坐标系。
+      if (s.layout?.mode === "free" && old && old.parentId !== newParentId) {
+        const offsetOf = (pid: string): { x: number; y: number } => {
+          let x = 0;
+          let y = 0;
+          let at: string | undefined = pid;
+          const seen = new Set<string>();
+          while (at && !seen.has(at)) {
+            seen.add(at);
+            const pn = s.nodes[at];
+            if (pn?.layout) {
+              x += pn.layout.x;
+              y += pn.layout.y;
+            }
+            at = findParent(at)?.parentId;
+          }
+          return { x, y };
+        };
+        const node = s.nodes[id];
+        if (node.layout) {
+          const from = offsetOf(old.parentId);
+          const to = offsetOf(newParentId);
+          node.layout = {
+            ...node.layout,
+            x: node.layout.x + from.x - to.x,
+            y: node.layout.y + from.y - to.y,
+          };
+        }
       }
       let targetIndex = index;
       if (old) {
@@ -317,15 +371,26 @@ export const useSchemaStore = defineStore("schema", {
         }
         return true;
       });
-      for (const id of top) if (s.nodes[id]) this.removeNodeReparent(id);
-      this.selectedIds = [];
-      this.selectedId = s.rootId;
+      let removed = 0;
+      for (const id of top) {
+        if (this.isNodeLocked(id) || this.subtreeHasLocked(id)) continue;
+        if (s.nodes[id]) {
+          this.removeNodeReparent(id);
+          removed += 1;
+        }
+      }
+      if (removed) {
+        this.selectedIds = this.selectedIds.filter((id) => s.nodes[id]);
+        this.selectedId = this.selectedIds[this.selectedIds.length - 1] || s.rootId;
+      }
     },
 
-    /** 自由布局多选对齐。 */
+    /** 自由布局多选对齐（只处理顶层自由节点，避免重复移动组合子节点）。 */
     alignSelection(mode: "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom") {
-      const nodes = this.selectedNodes.filter((n) => !!n.layout);
-      if (!nodes.length) return;
+      const nodes = this.topLevelSelectedIds
+        .map((id) => this.schema?.nodes[id])
+        .filter((n): n is SchemaNode => !!n?.layout && !this.isNodeLocked(n.id));
+      if (nodes.length < 2) return;
       const left = Math.min(...nodes.map((n) => n.layout!.x));
       const right = Math.max(...nodes.map((n) => n.layout!.x + n.layout!.width));
       const top = Math.min(...nodes.map((n) => n.layout!.y));
@@ -344,7 +409,9 @@ export const useSchemaStore = defineStore("schema", {
 
     /** 自由布局多选等间距分布。 */
     distributeSelection(axis: "x" | "y") {
-      const nodes = this.selectedNodes.filter((n) => !!n.layout);
+      const nodes = this.topLevelSelectedIds
+        .map((id) => this.schema?.nodes[id])
+        .filter((n): n is SchemaNode => !!n?.layout && !this.isNodeLocked(n.id));
       if (nodes.length < 3) return;
       const size = (n: SchemaNode) => (axis === "x" ? n.layout!.width : n.layout!.height);
       const pos = (n: SchemaNode) => (axis === "x" ? n.layout!.x : n.layout!.y);
@@ -360,6 +427,193 @@ export const useSchemaStore = defineStore("schema", {
         cursor += size(n) + gap;
       }
       this.dirty = true;
+    },
+
+    /** 递归检查节点自身或任一后代是否锁定。 */
+    subtreeHasLocked(id: string): boolean {
+      const s = this.schema;
+      const n = s?.nodes[id];
+      if (!s || !n) return false;
+      if (n.locked) return true;
+      for (const c of n.children || []) if (this.subtreeHasLocked(c)) return true;
+      for (const list of Object.values(n.slots || {})) for (const c of list) if (this.subtreeHasLocked(c)) return true;
+      return false;
+    },
+
+    /** 有效锁定：节点自身或任一祖先锁定。 */
+    isNodeLocked(id: string): boolean {
+      const s = this.schema;
+      if (!s) return false;
+      let cur: string | null = id;
+      const seen = new Set<string>();
+      while (cur && !seen.has(cur)) {
+        seen.add(cur);
+        const n = s.nodes[cur];
+        if (!n) return false;
+        if (n.locked) return true;
+        cur = this.parentOf(cur);
+      }
+      return false;
+    },
+
+    /** 有效隐藏：节点自身或任一祖先隐藏。 */
+    isNodeHiddenDeep(id: string): boolean {
+      const s = this.schema;
+      if (!s) return false;
+      let cur: string | null = id;
+      const seen = new Set<string>();
+      while (cur && !seen.has(cur)) {
+        seen.add(cur);
+        const n = s.nodes[cur];
+        if (!n) return false;
+        if (n.hidden) return true;
+        cur = this.parentOf(cur);
+      }
+      return false;
+    },
+
+    setNodeLocked(id: string, locked: boolean) {
+      const n = this.schema?.nodes[id];
+      if (!n || id === this.schema?.rootId) return;
+      if (locked) n.locked = true;
+      else delete n.locked;
+      this.dirty = true;
+    },
+
+    toggleNodeLocked(id: string) {
+      const n = this.schema?.nodes[id];
+      if (!n) return;
+      this.setNodeLocked(id, !n.locked);
+    },
+
+    setNodeHidden(id: string, hidden: boolean) {
+      const n = this.schema?.nodes[id];
+      if (!n || id === this.schema?.rootId) return;
+      if (hidden) n.hidden = true;
+      else delete n.hidden;
+      this.dirty = true;
+    },
+
+    toggleNodeHidden(id: string) {
+      const n = this.schema?.nodes[id];
+      if (!n) return;
+      this.setNodeHidden(id, !n.hidden);
+    },
+
+    /** 是否可以对当前选择执行组合（同父级、>=2 个顶层节点；free 模式要求都有 layout）。 */
+    canGroupSelection(): boolean {
+      const s = this.schema;
+      if (!s) return false;
+      const ids = this.topLevelSelectedIds.filter((id) => id !== s.rootId && !!s.nodes[id] && !this.isNodeLocked(id));
+      if (ids.length < 2) return false;
+      const parentIds = new Set(ids.map((id) => this.parentOf(id)));
+      if (parentIds.size !== 1 || parentIds.has(null)) return false;
+      const parentId = [...parentIds][0] as string;
+      const parent = s.nodes[parentId];
+      if (!parent?.children || ids.some((id) => !parent.children!.includes(id))) return false;
+      if (s.layout?.mode === "free" && ids.some((id) => !s.nodes[id].layout)) return false;
+      return true;
+    },
+
+    /**
+     * 将选中的同父级节点组合为容器节点（type=div，isGroup=true）。
+     * free 模式：容器使用选择包围盒，子节点 layout 转为容器内相对偏移；
+     * flow 模式：只包装子节点顺序，不写 layout。
+     */
+    groupSelection(): string | null {
+      const s = this.schema;
+      if (!s || !this.canGroupSelection()) return null;
+      const ids = this.topLevelSelectedIds.filter((id) => id !== s.rootId && !!s.nodes[id] && !this.isNodeLocked(id));
+      const parentId = this.parentOf(ids[0]);
+      const parent = parentId ? s.nodes[parentId] : null;
+      if (!parent?.children) return null;
+      const list = parent.children;
+      const ordered = ids.filter((id) => list.includes(id)).sort((a, b) => list.indexOf(a) - list.indexOf(b));
+      if (ordered.length < 2) return null;
+      const free = s.layout?.mode === "free";
+      let minX = 0;
+      let minY = 0;
+      let width = 0;
+      let height = 0;
+      if (free) {
+        const layouts = ordered.map((id) => s.nodes[id].layout!);
+        minX = Math.min(...layouts.map((l) => l.x));
+        minY = Math.min(...layouts.map((l) => l.y));
+        const maxX = Math.max(...layouts.map((l) => l.x + l.width));
+        const maxY = Math.max(...layouts.map((l) => l.y + l.height));
+        width = Math.max(1, maxX - minX);
+        height = Math.max(1, maxY - minY);
+      }
+      const comp = useComponentStore();
+      const groupId = uid();
+      const group: SchemaNode = {
+        id: groupId,
+        type: "div",
+        componentVersion: comp.meta("div")?.version || "1.0.0",
+        props: { ...comp.schemaDefaults("div"), text: "" },
+        children: [...ordered],
+        isGroup: true,
+      };
+      if (free) group.layout = { x: minX, y: minY, width, height };
+      const insertAt = Math.min(...ordered.map((id) => list.indexOf(id)));
+      parent.children = list.filter((id) => !ordered.includes(id));
+      parent.children.splice(Math.min(insertAt, parent.children.length), 0, groupId);
+      for (const id of ordered) {
+        const n = s.nodes[id];
+        if (free && n.layout) {
+          n.layout = { ...n.layout, x: n.layout.x - minX, y: n.layout.y - minY };
+        }
+      }
+      s.nodes[groupId] = group;
+      this.selectedIds = [groupId];
+      this.selectedId = groupId;
+      this.dirty = true;
+      return groupId;
+    },
+
+    /** 取消组合：把 group 的子节点恢复到 group 原位置并删除容器。返回释放的节点数。 */
+    ungroupSelection(): number {
+      const s = this.schema;
+      if (!s) return 0;
+      const groups = this.selectedIds.filter((id) => !!s.nodes[id]?.isGroup && !this.isNodeLocked(id));
+      if (!groups.length) return 0;
+      const free = s.layout?.mode === "free";
+      const released: string[] = [];
+      for (const gid of groups) {
+        const g = s.nodes[gid];
+        if (!g?.isGroup) continue;
+        const parentId = this.parentOf(gid);
+        const parent = parentId ? s.nodes[parentId] : null;
+        if (!parent?.children) continue;
+        const idx = parent.children.indexOf(gid);
+        if (idx < 0) continue;
+        const childIds = [...(g.children || [])].filter((id) => !!s.nodes[id]);
+        const gx = g.layout?.x ?? 0;
+        const gy = g.layout?.y ?? 0;
+        for (const cid of childIds) {
+          const c = s.nodes[cid];
+          if (free && c.layout && g.layout) {
+            c.layout = { ...c.layout, x: c.layout.x + gx, y: c.layout.y + gy };
+          }
+        }
+        parent.children.splice(idx, 1, ...childIds);
+        delete s.nodes[gid];
+        released.push(...childIds);
+      }
+      if (!released.length) return 0;
+      const alive = [...new Set(released)].filter((id) => !!s.nodes[id]);
+      if (!alive.length) return 0;
+      this.selectedIds = alive;
+      this.selectedId = alive[alive.length - 1] || s.rootId;
+      this.dirty = true;
+      return alive.length;
+    },
+
+    /** 当前选择中是否包含可取消组合的分组容器。 */
+    canUngroupSelection(): boolean {
+      const s = this.schema;
+      if (!s) return false;
+      return this.selectedIds.some((id) => !!s.nodes[id]?.isGroup && !this.isNodeLocked(id));
     },
 
     /** 插入组件节点：props 取 props_schema 默认值，slots 按 meta.slots 初始化。 */
@@ -462,6 +716,7 @@ export const useSchemaStore = defineStore("schema", {
     removeNodeReparent(id: string) {
       const s = this.schema;
       if (!s || id === s.rootId || !s.nodes[id]) return;
+      if (this.isNodeLocked(id) || this.subtreeHasLocked(id)) return;
       const target = s.nodes[id];
       let parent: SchemaNode | null = null;
       for (const p of Object.values(s.nodes)) {

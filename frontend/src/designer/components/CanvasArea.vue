@@ -4,13 +4,42 @@
       <div v-if="root" class="wp-canvas-root">
         <NodeRenderer
           :node="root"
-          :nodes="nodes"
+          :nodes="renderNodes"
           mode="design"
           :canvas-style="canvasStyle"
           :layout-mode="layoutMode"
         />
       </div>
       <div v-else class="wp-canvas-empty">尚未加载页面数据</div>
+
+      <!-- 设计态覆盖层：智能辅助线 / 框选 / 拖动坐标反馈 -->
+      <div class="wp-canvas-overlay">
+        <div
+          v-for="(x, i) in guides.v"
+          :key="`v-${i}`"
+          class="wp-guide wp-guide-v"
+          :style="{ left: `${x}px` }"
+        />
+        <div
+          v-for="(y, i) in guides.h"
+          :key="`h-${i}`"
+          class="wp-guide wp-guide-h"
+          :style="{ top: `${y}px` }"
+        />
+        <div
+          v-if="marquee"
+          class="wp-marquee"
+          :style="{ left: `${marquee.x}px`, top: `${marquee.y}px`, width: `${marquee.width}px`, height: `${marquee.height}px` }"
+        />
+        <div
+          v-if="feedback"
+          class="wp-drag-feedback"
+          :style="{ left: `${feedback.x}px`, top: `${Math.max(0, feedback.y - 24)}px` }"
+        >
+          {{ Math.round(feedback.x) }}, {{ Math.round(feedback.y) }}
+          <span class="wp-drag-feedback-size">{{ Math.round(feedback.width) }} × {{ Math.round(feedback.height) }}</span>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -24,7 +53,16 @@ import { useComponentStore } from "@/store/component";
 import { useHistoryStore } from "@/store/history";
 import NodeRenderer from "@/engine/NodeRenderer.vue";
 import { droppedComponent, snap, withHistory, DND_NODE_MIME } from "../util";
+import {
+  absoluteRect,
+  intersectsRect,
+  snapRect,
+  unionRect,
+  type Rect,
+  type SnapTargets,
+} from "../utils/layout";
 import { deepClone } from "@/utils";
+import { displayNodes, layoutFor, writeLayout } from "../responsive-layout";
 
 const schema = useSchemaStore();
 const editor = useEditorStore();
@@ -47,6 +85,7 @@ function onDragLeave(e: DragEvent) {
 
 const root = computed(() => schema.root);
 const nodes = computed<Record<string, any>>(() => schema.schema?.nodes || {});
+const renderNodes = computed(() => displayNodes(nodes.value, editor.device));
 const layoutMode = computed<"flow" | "free">(() => schema.layoutMode);
 const gridSize = editor.gridSize || 8;
 
@@ -61,6 +100,9 @@ const canvasStyle = computed<Record<string, string>>(() => {
   }
   return { width: `${w}px`, height: `${h}px`, ...base };
 });
+
+const pageWidth = computed(() => Number.parseFloat(canvasStyle.value.width) || 1200);
+const pageHeight = computed(() => Number.parseFloat(canvasStyle.value.height) || 800);
 
 const innerStyle = computed(() => ({
   transform: `scale(${editor.zoom})`,
@@ -79,6 +121,41 @@ function fitCanvas() {
 }
 watch(() => editor.fitRequest, () => nextTick(fitCanvas));
 watch(() => editor.device, () => nextTick(fitCanvas));
+
+// ---------- 设计态锁定 / 隐藏（只注入到设计画布，运行态不生效） ----------
+const designCss = computed(() => {
+  const s = schema.schema;
+  if (!s) return "";
+  const hidden: string[] = [];
+  const locked: string[] = [];
+  for (const id of Object.keys(s.nodes)) {
+    if (id === s.rootId) continue;
+    const n = s.nodes[id];
+    if (!n) continue;
+    if (n.hidden) hidden.push(id);
+    if (schema.isNodeLocked(id)) locked.push(id);
+  }
+  const parts: string[] = [];
+  for (const id of hidden) parts.push(`.wp-canvas [data-wp-node="${id}"]{display:none!important}`);
+  for (const id of locked) {
+    parts.push(
+      `.wp-canvas [data-wp-node="${id}"]>.wp-node-close,.wp-canvas [data-wp-node="${id}"]>.wp-resize-handle{display:none!important;pointer-events:none!important}`
+    );
+  }
+  return parts.join("\n");
+});
+
+let designStyleEl: HTMLStyleElement | null = null;
+function applyDesignCss() {
+  if (typeof document === "undefined") return;
+  if (!designStyleEl) {
+    designStyleEl = document.createElement("style");
+    designStyleEl.id = "wp-designer-canvas-state";
+    document.head.appendChild(designStyleEl);
+  }
+  designStyleEl.textContent = designCss.value;
+}
+watch(designCss, applyDesignCss);
 
 // ---------- 拖放插入 ----------
 function nodeFromEvent(e: MouseEvent | DragEvent): { id: string } | null {
@@ -153,77 +230,325 @@ function onDrop(e: DragEvent) {
   }
 }
 
-// ---------- free 布局拖动 / 缩放 ----------
-let dragState: {
+// ---------- free 布局拖动 / 缩放 / 智能辅助线 ----------
+interface DragState {
   kind: "move" | "resize";
   id: string;
+  ids: string[];
+  parentId: string;
   startX: number;
   startY: number;
-  orig: { x: number; y: number; width?: number; height?: number };
+  orig: Record<string, Rect>;
+  bbox: Rect;
   before: any;
   moved: boolean;
-} | null = null;
+}
+
+interface MarqueeState {
+  startX: number;
+  startY: number;
+  additive: boolean;
+  baseIds: string[];
+  moved: boolean;
+}
+
+let dragState: DragState | null = null;
+let marqueeState: MarqueeState | null = null;
+/** 多选整体拖动后浏览器仍会派发 click，捕获阶段拦截一次以免 NodeRenderer 把多选折叠成单选。 */
+let suppressClickOnce = false;
+let suppressClickTimer = 0;
+
+const guides = ref<{ v: number[]; h: number[] }>({ v: [], h: [] });
+const feedback = ref<Rect | null>(null);
+const marquee = ref<Rect | null>(null);
+const suppressCanvasClick = ref(false);
+let suppressCanvasTimer = 0;
+
+function pointFromEvent(e: PointerEvent): { x: number; y: number } | null {
+  const el = innerRef.value;
+  if (!el) return null;
+  const rect = el.getBoundingClientRect();
+  return { x: (e.clientX - rect.left) / editor.zoom, y: (e.clientY - rect.top) / editor.zoom };
+}
+
+/** 父级在页面坐标系中的偏移（嵌套组合时把页面参考线转换到父级局部坐标）。 */
+function parentOffset(parentId: string): { x: number; y: number } {
+  let x = 0;
+  let y = 0;
+  let cur: string | null = parentId;
+  const seen = new Set<string>();
+  while (cur && !seen.has(cur)) {
+    seen.add(cur);
+    const n = schema.node(cur);
+    const l = layoutFor(n, editor.device);
+    if (l) { x += l.x; y += l.y; }
+    cur = schema.parentOf(cur);
+  }
+  return { x, y };
+}
+
+function topLevelIn(ids: string[]): string[] {
+  const set = new Set(ids);
+  return ids.filter((id) => {
+    let p = schema.parentOf(id);
+    const seen = new Set<string>();
+    while (p && !seen.has(p)) {
+      if (set.has(p)) return false;
+      seen.add(p);
+      p = schema.parentOf(p);
+    }
+    return true;
+  });
+}
+
+/** 收集页面边缘 / 中心 + 同级节点边缘 / 中心参考线（父级局部坐标）。 */
+function collectSnapTargets(ids: string[], parentId: string): SnapTargets {
+  const offset = parentOffset(parentId);
+  const vertical = new Set<number>([-offset.x, pageWidth.value / 2 - offset.x, pageWidth.value - offset.x]);
+  const horizontal = new Set<number>([-offset.y, pageHeight.value / 2 - offset.y, pageHeight.value - offset.y]);
+  const moving = new Set<string>();
+  const addSubtree = (id: string) => {
+    if (moving.has(id)) return;
+    moving.add(id);
+    const n = schema.node(id);
+    if (!n) return;
+    for (const c of n.children || []) addSubtree(c);
+    for (const list of Object.values(n.slots || {})) for (const c of list) addSubtree(c);
+  };
+  for (const id of ids) addSubtree(id);
+  const parents = new Set<string>();
+  for (const id of ids) {
+    const p = schema.parentOf(id);
+    if (p) parents.add(p);
+  }
+  for (const pid of parents) {
+    for (const child of schema.childrenOf(pid)) {
+      if (moving.has(child.id) || child.hidden || !child.layout) continue;
+      const l = child.layout;
+      vertical.add(l.x);
+      vertical.add(l.x + l.width / 2);
+      vertical.add(l.x + l.width);
+      horizontal.add(l.y);
+      horizontal.add(l.y + l.height / 2);
+      horizontal.add(l.y + l.height);
+    }
+  }
+  return { vertical: [...vertical], horizontal: [...horizontal] };
+}
 
 function onNodePointerDown(e: PointerEvent) {
   if (layoutMode.value !== "free" || e.button !== 0) return;
-  if ((e.target as HTMLElement | null)?.closest?.(".wp-node-close") != null) return; // × 按钮不触发拖动
+  const targetEl = e.target as HTMLElement | null;
+  if (targetEl?.closest?.(".wp-node-close") != null) return; // × 按钮不触发拖动
+  if (targetEl?.closest?.(".wp-resize-handle") == null && targetEl?.closest?.(".wp-node") == null) {
+    startMarquee(e);
+    return;
+  }
   const hit = nodeFromEvent(e);
-  if (!hit) return;
+  if (!hit) {
+    startMarquee(e);
+    return;
+  }
   const n = schema.node(hit.id);
-  if (!n?.layout || hit.id === schema.schema?.rootId) return;
-  const resizing = (e.target as HTMLElement | null)?.closest?.(".wp-resize-handle") != null;
+  if (!n || !layoutFor(n, editor.device) || hit.id === schema.schema?.rootId) return;
+  if (schema.isNodeLocked(hit.id)) return; // 锁定节点禁止拖动 / 缩放
+
+  const resizing = targetEl?.closest?.(".wp-resize-handle") != null;
+  const additive = e.ctrlKey || e.metaKey || e.shiftKey;
+  if (!resizing && !schema.selectedIds.includes(hit.id)) {
+    // Ctrl 点击只做选择（交给 NodeRenderer 的 click），普通点击先选中再拖动
+    if (additive) return;
+    schema.select(hit.id);
+  }
+  if (resizing && !schema.selectedIds.includes(hit.id)) return;
+
+  let ids: string[] = [hit.id];
+  const parentId = schema.parentOf(hit.id) || (schema.schema?.rootId as string);
+  if (!resizing) {
+    const top = schema.topLevelSelectedIds;
+    const candidates = top.length ? top : [hit.id];
+    const movable = candidates.filter((id) => {
+      const node = schema.node(id);
+      return (
+        !!node?.layout &&
+        (schema.parentOf(id) || (schema.schema?.rootId as string)) === parentId &&
+        !schema.isNodeLocked(id) &&
+        !schema.isNodeHiddenDeep(id)
+      );
+    });
+    if (movable.includes(hit.id)) ids = movable;
+  }
+
+  const orig: Record<string, Rect> = {};
+  for (const id of ids) {
+    const l = layoutFor(schema.node(id), editor.device);
+    if (l) orig[id] = { x: l.x, y: l.y, width: l.width || 0, height: l.height || 0 };
+  }
+  const bbox = unionRect(Object.values(orig));
+  if (!bbox) return;
   dragState = {
     kind: resizing ? "resize" : "move",
     id: hit.id,
+    ids,
+    parentId,
     startX: e.clientX,
     startY: e.clientY,
-    orig: { ...n.layout },
+    orig,
+    bbox,
     before: deepClone(schema.schema),
     moved: false,
   };
 }
 
+function startMarquee(e: PointerEvent) {
+  if (layoutMode.value !== "free") return;
+  const el = innerRef.value;
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
+  const p = pointFromEvent(e);
+  if (!p) return;
+  if (p.x < 0 || p.y < 0 || p.x > pageWidth.value || p.y > pageHeight.value) return;
+  marqueeState = {
+    startX: p.x,
+    startY: p.y,
+    additive: !!(e.ctrlKey || e.metaKey || e.shiftKey),
+    baseIds: [...schema.selectedIds],
+    moved: false,
+  };
+  marquee.value = { x: p.x, y: p.y, width: 0, height: 0 };
+}
+
 function onPointerMove(e: PointerEvent) {
+  if (marqueeState) {
+    const p = pointFromEvent(e);
+    if (!p) return;
+    const x = Math.max(0, Math.min(pageWidth.value, p.x));
+    const y = Math.max(0, Math.min(pageHeight.value, p.y));
+    const rect: Rect = {
+      x: Math.min(marqueeState.startX, x),
+      y: Math.min(marqueeState.startY, y),
+      width: Math.abs(x - marqueeState.startX),
+      height: Math.abs(y - marqueeState.startY),
+    };
+    if (rect.width > 2 || rect.height > 2) marqueeState.moved = true;
+    marquee.value = rect;
+    return;
+  }
   if (!dragState) return;
-  const dx = (e.clientX - dragState.startX) / editor.zoom;
-  const dy = (e.clientY - dragState.startY) / editor.zoom;
-  if (!dragState.moved && Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
-  dragState.moved = true;
-  const n = schema.node(dragState.id);
-  if (!n?.layout) return;
-  if (dragState.kind === "move") {
-    n.layout.x = Math.max(0, snap(dragState.orig.x + dx));
-    n.layout.y = Math.max(0, snap(dragState.orig.y + dy));
+  const state = dragState;
+  const dx = (e.clientX - state.startX) / editor.zoom;
+  const dy = (e.clientY - state.startY) / editor.zoom;
+  if (!state.moved && Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
+  state.moved = true;
+
+  if (state.kind === "resize") {
+    const n = schema.node(state.id);
+    const base = state.orig[state.id];
+    if (!n || !base) return;
+    const current = layoutFor(n, editor.device) || base;
+    const next = { x: current.x, y: current.y, width: Math.max(24, snap(base.width + dx, 4)), height: Math.max(24, snap(base.height + dy, 4)) };
+    writeLayout(n, editor.device, next);
+    feedback.value = next;
   } else {
-    n.layout.width = Math.max(24, snap((dragState.orig.width ?? 100) + dx, 4));
-    n.layout.height = Math.max(24, snap((dragState.orig.height ?? 60) + dy, 4));
+    const targets = collectSnapTargets(state.ids, state.parentId);
+    const raw: Rect = { x: state.bbox.x + dx, y: state.bbox.y + dy, width: state.bbox.width, height: state.bbox.height };
+    const snapped = snapRect(raw, targets, 6);
+    // 有辅助线时优先吸附参考线，否则保持原有 8px 网格吸附。
+    let moveX = snapped.v.length ? snapped.x - state.bbox.x : snap(dx, gridSize);
+    let moveY = snapped.h.length ? snapped.y - state.bbox.y : snap(dy, gridSize);
+    moveX = Math.max(moveX, -state.bbox.x);
+    moveY = Math.max(moveY, -state.bbox.y);
+    for (const id of state.ids) {
+      const n = schema.node(id);
+      const base = state.orig[id];
+      if (!n || !base) continue;
+      const current = layoutFor(n, editor.device) || base;
+      writeLayout(n, editor.device, { x: base.x + moveX, y: base.y + moveY, width: current.width, height: current.height });
+    }
+    guides.value = { v: snapped.v, h: snapped.h };
+    feedback.value = {
+      x: state.bbox.x + moveX,
+      y: state.bbox.y + moveY,
+      width: state.bbox.width,
+      height: state.bbox.height,
+    };
   }
   schema.dirty = true;
 }
 
 function onPointerUp() {
+  if (marqueeState) {
+    const state = marqueeState;
+    const rect = marquee.value;
+    marqueeState = null;
+    marquee.value = null;
+    if (state.moved && rect) {
+      const s = schema.schema;
+      const hits: string[] = [];
+      if (s) {
+        for (const [id, node] of Object.entries(s.nodes)) {
+          if (id === s.rootId || !node.layout || schema.isNodeHiddenDeep(id)) continue;
+          const abs = absoluteRect(id, s.nodes, schema.parentOf);
+          if (abs && intersectsRect(abs, rect)) hits.push(id);
+        }
+      }
+      const filtered = topLevelIn(hits);
+      const finalIds = state.additive
+        ? [...new Set([...state.baseIds, ...filtered])].filter((id) => id !== schema.schema?.rootId)
+        : filtered;
+      schema.selectMany(finalIds);
+      suppressCanvasClick.value = true;
+      window.clearTimeout(suppressCanvasTimer);
+      suppressCanvasTimer = window.setTimeout(() => {
+        suppressCanvasClick.value = false;
+      }, 200);
+    }
+    return;
+  }
   if (!dragState) return;
-  if (dragState.moved) {
+  const state = dragState;
+  if (state.moved) {
     const after = deepClone(schema.schema);
-    if (JSON.stringify(after) !== JSON.stringify(dragState.before)) {
-      history.push(dragState.kind === "move" ? "拖动节点" : "调整大小", dragState.before, after);
+    if (JSON.stringify(after) !== JSON.stringify(state.before)) {
+      history.push(state.kind === "move" ? "拖动节点" : "调整大小", state.before, after);
+    }
+    if (state.kind === "move" && state.ids.length > 1) {
+      suppressClickOnce = true;
+      window.clearTimeout(suppressClickTimer);
+      suppressClickTimer = window.setTimeout(() => {
+        suppressClickOnce = false;
+      }, 150);
     }
   }
   dragState = null;
+  guides.value = { v: [], h: [] };
+  feedback.value = null;
+}
+
+// capture 阶段拦截多选拖动结束后误触发的 click
+function onClickCapture(e: MouseEvent) {
+  if (!suppressClickOnce) return;
+  suppressClickOnce = false;
+  window.clearTimeout(suppressClickTimer);
+  e.stopPropagation();
 }
 
 // 事件绑定（事件委托，避免逐个节点挂 handler）
 const wrapperEl = () => scrollRef.value;
 function pd(e: PointerEvent) { onNodePointerDown(e); }
 function pm(e: PointerEvent) { onPointerMove(e); }
-function pu(e: PointerEvent) { onPointerUp(); }
+function pu() { onPointerUp(); }
 let fitObserver: ResizeObserver | null = null;
 let fitTimer = 0;
 onMounted(() => {
+  applyDesignCss();
   const el = wrapperEl();
   el?.addEventListener("pointerdown", pd);
+  el?.addEventListener("click", onClickCapture, true);
   window.addEventListener("pointermove", pm);
   window.addEventListener("pointerup", pu);
+  window.addEventListener("pointercancel", pu);
   nextTick(() => {
     fitCanvas();
     // 首次挂载时左右面板宽度可能尚未完成布局，再补一次。
@@ -240,14 +565,25 @@ onMounted(() => {
 onBeforeUnmount(() => {
   const el = wrapperEl();
   el?.removeEventListener("pointerdown", pd);
+  el?.removeEventListener("click", onClickCapture, true);
   window.removeEventListener("pointermove", pm);
   window.removeEventListener("pointerup", pu);
+  window.removeEventListener("pointercancel", pu);
   fitObserver?.disconnect();
   window.clearTimeout(fitTimer);
+  window.clearTimeout(suppressClickTimer);
+  window.clearTimeout(suppressCanvasTimer);
+  designStyleEl?.remove();
+  designStyleEl = null;
 });
 
-// 点击空白画布 → 选中根
+// 点击空白画布 → 选中根（框选结束后不触发）
 function onCanvasClick(e: MouseEvent) {
+  if (suppressCanvasClick.value) {
+    suppressCanvasClick.value = false;
+    window.clearTimeout(suppressCanvasTimer);
+    return;
+  }
   const t = e.target as HTMLElement | null;
   if (!t) return;
   if (t.closest?.(".wp-node")) return; // 节点自身处理
@@ -284,6 +620,49 @@ function onCanvasClick(e: MouseEvent) {
   color: var(--el-text-color-secondary);
   padding: 40px;
 }
+.wp-canvas-overlay {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 20;
+}
+.wp-guide {
+  position: absolute;
+  background: #ff4d8d;
+  box-shadow: 0 0 0 1px rgba(255, 77, 141, 0.25);
+}
+.wp-guide-v {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+.wp-guide-h {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+.wp-marquee {
+  position: absolute;
+  border: 1px solid var(--el-color-primary);
+  background: rgba(64, 158, 255, 0.12);
+  box-sizing: border-box;
+}
+.wp-drag-feedback {
+  position: absolute;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--el-color-primary);
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+.wp-drag-feedback-size {
+  margin-left: 4px;
+  opacity: 0.85;
+}
 </style>
 
 <style>
@@ -312,8 +691,7 @@ function onCanvasClick(e: MouseEvent) {
   justify-content: center;
   z-index: 10;
 }
-.wp-node:hover .wp-node-close,
-.wp-node-selected .wp-node-close {
+.wp-node-selected > .wp-node-close {
   display: flex;
 }
 .wp-node-close:hover {

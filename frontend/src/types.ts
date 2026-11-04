@@ -183,6 +183,12 @@ export interface SchemaNode {
   dataBinding?: DataBinding | null;
   /** 自由布局定位（仅 free 模式） */
   layout?: { x: number; y: number; width: number; height: number } | null;
+  /** 设计器锁定：阻止画布拖动 / 缩放 / 删除；运行态无影响。 */
+  locked?: boolean;
+  /** 设计器隐藏：仅在设计画布中隐藏（大纲仍可见）；运行态照常渲染。 */
+  hidden?: boolean;
+  /** 组合容器标记：由「组合」创建，供「取消组合」识别。 */
+  isGroup?: boolean;
 }
 
 import type { DesignTokens } from "./design/tokens";

@@ -1,30 +1,95 @@
 <template>
   <div class="wp-outline">
+    <div class="wp-outline-tools">
+      <div class="wp-outline-tool-row">
+        <span class="wp-outline-tool-label">对齐</span>
+        <button type="button" class="wp-outline-btn" title="左对齐" :disabled="!canAlign" @click="doAlign('left')">⇤</button>
+        <button type="button" class="wp-outline-btn" title="水平居中" :disabled="!canAlign" @click="doAlign('hcenter')">↔</button>
+        <button type="button" class="wp-outline-btn" title="右对齐" :disabled="!canAlign" @click="doAlign('right')">⇥</button>
+        <button type="button" class="wp-outline-btn" title="顶对齐" :disabled="!canAlign" @click="doAlign('top')">⇧</button>
+        <button type="button" class="wp-outline-btn" title="垂直居中" :disabled="!canAlign" @click="doAlign('vcenter')">↕</button>
+        <button type="button" class="wp-outline-btn" title="底对齐" :disabled="!canAlign" @click="doAlign('bottom')">⇩</button>
+      </div>
+      <div class="wp-outline-tool-row">
+        <span class="wp-outline-tool-label">分布</span>
+        <button type="button" class="wp-outline-btn is-text" title="水平等距分布（至少 3 个）" :disabled="!canDistribute" @click="doDistribute('x')">横向</button>
+        <button type="button" class="wp-outline-btn is-text" title="垂直等距分布（至少 3 个）" :disabled="!canDistribute" @click="doDistribute('y')">纵向</button>
+        <span class="wp-outline-sep" />
+        <button type="button" class="wp-outline-btn is-text" title="把选中的同父级节点组合为容器" :disabled="!canGroup" @click="doGroup">组合</button>
+        <button type="button" class="wp-outline-btn is-text" title="取消组合并还原节点位置" :disabled="!canUngroup" @click="doUngroup">拆分</button>
+      </div>
+    </div>
+
     <div class="wp-outline-hint">
-      点击选择，Ctrl / Shift 点击多选；Delete 删除，Ctrl+C / Ctrl+V 复制粘贴。
+      点击选择，Ctrl / Shift 多选；拖动行可排序或移入容器；Delete 删除，Ctrl+C / Ctrl+V 复制粘贴。
     </div>
     <div v-if="!rows.length" class="wp-outline-empty">页面还没有节点</div>
     <div
       v-for="row in rows"
       :key="row.id"
       class="wp-outline-row"
-      :class="{ selected: selectedIds.includes(row.id) }"
-      :style="{ paddingLeft: 8 + row.depth * 14 + 'px' }"
+      :class="{
+        selected: selectedIds.includes(row.id),
+        'is-locked': row.node.locked,
+        'is-hidden': row.node.hidden,
+        dragging: dragId === row.id,
+        'drop-before': dropTarget?.id === row.id && dropTarget.pos === 'before',
+        'drop-after': dropTarget?.id === row.id && dropTarget.pos === 'after',
+        'drop-inside': dropTarget?.id === row.id && dropTarget.pos === 'inside',
+      }"
+      :style="{ paddingLeft: 6 + row.depth * 14 + 'px' }"
+      :draggable="row.id !== rootId"
       @click="onSelect(row.id, $event)"
+      @dragstart="onDragStart($event, row)"
+      @dragend="onDragEnd"
+      @dragover="onDragOver($event, row)"
+      @dragleave="onDragLeave($event, row)"
+      @drop="onDrop($event, row)"
     >
       <span class="wp-outline-icon">{{ row.icon }}</span>
-      <span class="wp-outline-label">{{ row.label }}</span>
+      <span class="wp-outline-label" :title="row.label">{{ row.label }}</span>
       <span v-if="row.slot" class="wp-outline-slot">{{ row.slot }}</span>
+      <span v-if="row.node.isGroup" class="wp-outline-badge is-group">组</span>
+      <span v-if="row.node.locked" class="wp-outline-badge is-lock">锁</span>
+      <span v-if="row.node.hidden" class="wp-outline-badge is-hide">隐</span>
       <span class="wp-outline-type">{{ row.node.type }}</span>
+      <span v-if="row.id !== rootId" class="wp-outline-ctrls">
+        <button
+          type="button"
+          class="wp-outline-ctrl"
+          :class="{ active: row.node.locked }"
+          :title="row.node.locked ? '解锁（允许画布拖动/缩放/删除）' : '锁定（禁止画布拖动/缩放/删除）'"
+          draggable="false"
+          @pointerdown.stop
+          @dragstart.stop.prevent
+          @click.stop="toggleLock(row)"
+        >
+          {{ row.node.locked ? "🔒" : "🔓" }}
+        </button>
+        <button
+          type="button"
+          class="wp-outline-ctrl"
+          :class="{ active: row.node.hidden }"
+          :title="row.node.hidden ? '在设计画布显示（运行态不受影响）' : '在设计画布隐藏（运行态仍渲染）'"
+          draggable="false"
+          @pointerdown.stop
+          @dragstart.stop.prevent
+          @click.stop="toggleHide(row)"
+        >
+          {{ row.node.hidden ? "🚫" : "👁" }}
+        </button>
+      </span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
+import { ElMessage } from "element-plus";
 import { useSchemaStore } from "@/store/schema";
 import { useComponentStore } from "@/store/component";
 import type { SchemaNode } from "@/types";
+import { DND_NODE_MIME, withHistory } from "../util";
 
 interface Row {
   id: string;
@@ -35,9 +100,18 @@ interface Row {
   slot?: string;
 }
 
+interface DropTarget {
+  id: string;
+  pos: "before" | "after" | "inside";
+}
+
 const schema = useSchemaStore();
 const components = useComponentStore();
 const selectedIds = computed(() => schema.selectedIds);
+const rootId = computed(() => schema.schema?.rootId || "");
+
+const dragId = ref<string | null>(null);
+const dropTarget = ref<DropTarget | null>(null);
 
 const iconMap: Record<string, string> = {
   Grid: "▦", Layout: "◫", EditPen: "✎", DataBoard: "▤", ChatDotRound: "◌",
@@ -70,8 +144,8 @@ const rows = computed<Row[]>(() => {
       id,
       node,
       depth,
-      label: node.type === "wp-canvas" ? "页面画布" : meta?.label || node.type,
-      icon: iconMap[meta?.icon || ""] || (node.type === "wp-canvas" ? "▣" : "◻"),
+      label: node.type === "wp-canvas" ? "页面画布" : node.isGroup ? "组合" : meta?.label || node.type,
+      icon: iconMap[meta?.icon || ""] || (node.type === "wp-canvas" ? "▣" : node.isGroup ? "▣" : "◻"),
       slot,
     });
     for (const child of node.children || []) walk(child, depth + 1);
@@ -83,8 +157,163 @@ const rows = computed<Row[]>(() => {
   return out;
 });
 
+const selectedFreeNodes = computed<SchemaNode[]>(() =>
+  schema.topLevelSelectedIds
+    .map((id) => schema.schema?.nodes[id])
+    .filter((n): n is SchemaNode => !!n?.layout && !schema.isNodeLocked(n.id))
+);
+const canAlign = computed(() => selectedFreeNodes.value.length >= 2);
+const canDistribute = computed(() => selectedFreeNodes.value.length >= 3);
+const canGroup = computed(() => schema.canGroupSelection());
+const canUngroup = computed(() => schema.canUngroupSelection());
+
+function doAlign(mode: "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom") {
+  if (!canAlign.value) return;
+  withHistory("对齐组件", () => schema.alignSelection(mode));
+}
+
+function doDistribute(axis: "x" | "y") {
+  if (!canDistribute.value) return;
+  withHistory("分布组件", () => schema.distributeSelection(axis));
+}
+
+function doGroup() {
+  if (!canGroup.value) {
+    ElMessage.warning("组合需要同一父级下至少两个自由布局节点");
+    return;
+  }
+  const id = withHistory("组合组件", () => schema.groupSelection());
+  if (!id) ElMessage.warning("组合失败：请确认节点同属一个父级且拥有自由布局位置");
+}
+
+function doUngroup() {
+  if (!canUngroup.value) return;
+  withHistory("取消组合", () => schema.ungroupSelection());
+}
+
 function onSelect(id: string, e: MouseEvent) {
   schema.select(id, e.ctrlKey || e.metaKey || e.shiftKey);
+}
+
+function toggleLock(row: Row) {
+  if (row.id === rootId.value) return;
+  withHistory(row.node.locked ? "解锁组件" : "锁定组件", () => schema.toggleNodeLocked(row.id));
+}
+
+function toggleHide(row: Row) {
+  if (row.id === rootId.value) return;
+  withHistory(row.node.hidden ? "显示组件" : "隐藏组件", () => schema.toggleNodeHidden(row.id));
+}
+
+// ---------- HTML5 拖拽排序 ----------
+function acceptsChildren(node: SchemaNode): boolean {
+  if (node.isGroup) return true;
+  const meta = components.meta(node.type);
+  return !!(meta && ((meta.accept_children || []).length > 0 || (meta.accepts || []).length > 0));
+}
+
+/** ancestorId 是否为 nodeId 本身或祖先。 */
+function isSelfOrAncestor(ancestorId: string, nodeId: string): boolean {
+  let cur: string | null = nodeId;
+  const seen = new Set<string>();
+  while (cur && !seen.has(cur)) {
+    if (cur === ancestorId) return true;
+    seen.add(cur);
+    cur = schema.parentOf(cur);
+  }
+  return false;
+}
+
+function onDragStart(e: DragEvent, row: Row) {
+  if ((e.target as HTMLElement | null)?.closest?.(".wp-outline-ctrl")) {
+    e.preventDefault();
+    return;
+  }
+  if (row.id === rootId.value || schema.isNodeLocked(row.id)) {
+    e.preventDefault();
+    return;
+  }
+  dragId.value = row.id;
+  dropTarget.value = null;
+  const dt = e.dataTransfer;
+  if (!dt) return;
+  dt.setData(DND_NODE_MIME, row.id);
+  dt.setData("text/plain", row.id);
+  dt.effectAllowed = "move";
+}
+
+function onDragEnd() {
+  dragId.value = null;
+  dropTarget.value = null;
+}
+
+function onDragOver(e: DragEvent, row: Row) {
+  const id = dragId.value;
+  if (!id) return;
+  if (id === row.id) {
+    dropTarget.value = null;
+    return;
+  }
+  const s = schema.schema;
+  if (!s) return;
+  // 不能把节点拖进自己 / 自己的后代；锁定节点或锁定容器不可排序。
+  if (isSelfOrAncestor(id, row.id)) {
+    dropTarget.value = null;
+    return;
+  }
+  if (schema.isNodeLocked(row.id) || schema.isNodeLocked(id)) {
+    dropTarget.value = null;
+    return;
+  }
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+  if (row.id === s.rootId) {
+    dropTarget.value = { id: row.id, pos: "inside" };
+    return;
+  }
+  const el = e.currentTarget as HTMLElement;
+  const rect = el.getBoundingClientRect();
+  const ratio = (e.clientY - rect.top) / Math.max(1, rect.height);
+  const container = acceptsChildren(row.node);
+  let pos: DropTarget["pos"] = ratio < 0.5 ? "before" : "after";
+  if (container && ratio > 0.22 && ratio < 0.78) pos = "inside";
+  dropTarget.value = { id: row.id, pos };
+}
+
+function onDragLeave(e: DragEvent, row: Row) {
+  const related = e.relatedTarget as Node | null;
+  if (related && (e.currentTarget as HTMLElement).contains(related)) return;
+  if (dropTarget.value?.id === row.id) dropTarget.value = null;
+}
+
+function onDrop(e: DragEvent, row: Row) {
+  e.preventDefault();
+  e.stopPropagation();
+  const s = schema.schema;
+  const id = dragId.value || e.dataTransfer?.getData(DND_NODE_MIME) || "";
+  const target = dropTarget.value;
+  dragId.value = null;
+  dropTarget.value = null;
+  if (!s || !id || id === row.id) return;
+  if (isSelfOrAncestor(id, row.id) && row.id !== s.rootId) return;
+
+  let parentId: string;
+  let index: number;
+  if (row.id === s.rootId) {
+    parentId = s.rootId;
+    index = s.nodes[s.rootId]?.children?.length ?? 0;
+  } else if (target?.id === row.id && target.pos === "inside") {
+    parentId = row.id;
+    index = s.nodes[row.id]?.children?.length ?? 0;
+  } else {
+    parentId = schema.parentOf(row.id) || s.rootId;
+    const siblings = s.nodes[parentId]?.children || [];
+    const at = siblings.indexOf(row.id);
+    index = (at >= 0 ? at : siblings.length) + (target?.pos === "after" ? 1 : 0);
+  }
+  if (parentId === id || isSelfOrAncestor(id, parentId)) return;
+  if (schema.isNodeLocked(id) || schema.isNodeLocked(parentId)) return;
+  withHistory("移动组件", () => schema.moveNode(id, parentId, index));
 }
 </script>
 
@@ -92,6 +321,58 @@ function onSelect(id: string, e: MouseEvent) {
 .wp-outline {
   padding: 8px;
   font-size: 12px;
+}
+.wp-outline-tools {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 4px;
+  padding: 4px;
+  margin-bottom: 8px;
+  background: var(--el-fill-color-lighter);
+}
+.wp-outline-tool-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 24px;
+}
+.wp-outline-tool-label {
+  flex: none;
+  width: 28px;
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+}
+.wp-outline-btn {
+  flex: none;
+  height: 22px;
+  min-width: 22px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--el-text-color-regular);
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+}
+.wp-outline-btn.is-text {
+  font-size: 11px;
+  padding: 0 5px;
+}
+.wp-outline-btn:hover:not(:disabled) {
+  background: var(--el-color-primary-light-9);
+  border-color: var(--el-color-primary-light-7);
+  color: var(--el-color-primary);
+}
+.wp-outline-btn:disabled {
+  color: var(--el-text-color-placeholder);
+  cursor: not-allowed;
+}
+.wp-outline-sep {
+  flex: none;
+  width: 1px;
+  height: 14px;
+  margin: 0 4px;
+  background: var(--el-border-color);
 }
 .wp-outline-hint {
   color: var(--el-text-color-secondary);
@@ -107,12 +388,13 @@ function onSelect(id: string, e: MouseEvent) {
 .wp-outline-row {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 6px;
+  gap: 4px;
+  padding: 4px 4px;
   border-radius: 3px;
   cursor: pointer;
   border: 1px solid transparent;
   min-width: 0;
+  position: relative;
 }
 .wp-outline-row:hover {
   background: var(--el-fill-color-light);
@@ -121,9 +403,38 @@ function onSelect(id: string, e: MouseEvent) {
   background: var(--el-color-primary-light-9);
   border-color: var(--el-color-primary-light-7);
 }
+.wp-outline-row.is-hidden .wp-outline-label,
+.wp-outline-row.is-hidden .wp-outline-icon {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+.wp-outline-row.dragging {
+  opacity: 0.45;
+}
+.wp-outline-row.drop-before::before,
+.wp-outline-row.drop-after::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--el-color-primary);
+  z-index: 2;
+}
+.wp-outline-row.drop-before::before {
+  top: -1px;
+}
+.wp-outline-row.drop-after::after {
+  bottom: -1px;
+}
+.wp-outline-row.drop-inside {
+  background: var(--el-color-primary-light-8);
+  border-color: var(--el-color-primary);
+}
 .wp-outline-icon {
   flex: none;
-  width: 16px;
+  width: 15px;
   text-align: center;
   color: var(--el-color-primary);
 }
@@ -142,13 +453,58 @@ function onSelect(id: string, e: MouseEvent) {
   border-radius: 2px;
   padding: 0 3px;
 }
+.wp-outline-badge {
+  flex: none;
+  font-size: 10px;
+  line-height: 14px;
+  padding: 0 3px;
+  border-radius: 2px;
+}
+.wp-outline-badge.is-group {
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+.wp-outline-badge.is-lock {
+  color: var(--el-color-danger);
+  background: var(--el-color-danger-light-9);
+}
+.wp-outline-badge.is-hide {
+  color: var(--el-color-warning);
+  background: var(--el-color-warning-light-9);
+}
 .wp-outline-type {
   flex: none;
-  max-width: 72px;
+  max-width: 56px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--el-text-color-placeholder);
   font-size: 10px;
+}
+.wp-outline-ctrls {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+.wp-outline-ctrl {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  font-size: 11px;
+  line-height: 18px;
+  cursor: pointer;
+  opacity: 0.55;
+}
+.wp-outline-ctrl:hover {
+  background: var(--el-fill-color-dark);
+  opacity: 1;
+}
+.wp-outline-ctrl.active {
+  opacity: 1;
+  background: var(--el-color-warning-light-9);
 }
 </style>

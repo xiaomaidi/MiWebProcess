@@ -8634,6 +8634,40 @@
       "slots": [],
       "accept_children": [],
       "is_container": false
+    },
+    {
+      "name": "wp-block",
+      "label": "复用区块",
+      "type": "layout",
+      "category": "layout",
+      "version": "1.0.0",
+      "icon": "Files",
+      "source": "legacy",
+      "props_schema": {
+        "type": "object",
+        "properties": {
+          "blockId": {
+            "type": "number",
+            "title": "区块 ID",
+            "default": 0
+          },
+          "blockCode": {
+            "type": "string",
+            "title": "区块编码",
+            "default": ""
+          },
+          "blockName": {
+            "type": "string",
+            "title": "区块名称",
+            "default": ""
+          },
+          "appCode": {
+            "type": "string",
+            "title": "应用编码",
+            "default": ""
+          }
+        }
+      }
     }
   ]
 }

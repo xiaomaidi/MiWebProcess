@@ -14,20 +14,56 @@
             <div class="wp-prop-head">
               <span class="wp-prop-label">{{ labelOf(key) }}</span>
               <el-tag size="small" type="warning">绑定</el-tag>
-              <el-button size="small" text @click="toLiteral(key)">字面量</el-button>
+              <span class="wp-prop-bind-summary" :title="bindingSummaryOf(key)">{{ bindingSummaryOf(key) }}</span>
+              <el-button size="small" text type="primary" @click="openPicker(key)">选择数据</el-button>
+              <el-popconfirm
+                :title="`清除「${labelOf(key)}」的绑定并恢复字面量？`"
+                confirm-button-text="清除"
+                cancel-button-text="取消"
+                width="230"
+                @confirm="toLiteral(key)"
+              >
+                <template #reference>
+                  <el-button size="small" text type="danger">清除绑定</el-button>
+                </template>
+              </el-popconfirm>
             </div>
+            <div class="wp-prop-binding-line">
+              <code class="wp-prop-expression">{{ bindingExpressionOf(key) }}</code>
+              <el-tag v-if="expectedTypeOf(key)" size="small" effect="plain">期望 {{ expectedTypeOf(key) }}</el-tag>
+              <el-tag v-if="bindingLoopVarOf(key)" size="small" type="success" effect="plain">
+                循环变量 {{ bindingLoopVarOf(key) }}
+              </el-tag>
+            </div>
+            <div class="wp-prop-preview">
+              <span class="k">设计时预览</span>
+              <span class="v">{{ previewOf(key).text }}</span>
+              <span v-if="previewOf(key).hint" class="hint">{{ previewOf(key).hint }}</span>
+            </div>
+            <el-alert
+              v-if="compatOf(key)"
+              :title="compatOf(key)"
+              type="warning"
+              :closable="false"
+              show-icon
+              class="wp-prop-warn"
+            />
             <BindingEditor
               :model-value="boundValue(key)"
               :datasources="datasources"
               :models="models"
               :variable-keys="variableKeys"
+              :variables="schema.schema?.variables"
+              :prop-title="labelOf(key)"
+              :expected-type="expectedTypeOf(key)"
               @update="setBound(key, $event)"
             />
           </template>
           <template v-else>
             <div class="wp-prop-head">
               <span class="wp-prop-label">{{ labelOf(key) }}</span>
-              <el-button v-if="bindableOf(key)" size="small" text @click="toBinding(key)">绑定</el-button>
+              <el-tag v-if="typeLabelOf(key)" size="small" effect="plain" class="wp-prop-type">{{ typeLabelOf(key) }}</el-tag>
+              <el-button v-if="bindableOf(key)" size="small" text type="primary" @click="openPicker(key)">绑定数据</el-button>
             </div>
             <PropControl
               :model-value="valueOf(key)"
@@ -71,6 +107,18 @@
         <div class="wp-prop-group-title">其他属性（JSON）</div>
         <PropControl :model-value="extraValue" kind="json" @commit="setExtra" />
       </div>
+
+      <BindingPicker
+        v-model="pickerOpen"
+        title="为属性选择数据"
+        :binding="pickerBinding"
+        :datasources="datasources"
+        :models="models"
+        :variables="schema.schema?.variables"
+        :expected-type="pickerExpectedType"
+        :target-label="pickerLabel"
+        @select="onPick"
+      />
     </template>
   </div>
 </template>
@@ -84,7 +132,21 @@ import { useComponentStore } from "@/store/component";
 import { useHistoryStore } from "@/store/history";
 import type { ComponentPropSchema, DataBinding, DataModelInfo, DataSourceDef } from "@/types";
 import BindingEditor from "./BindingEditor.vue";
+import BindingPicker from "./BindingPicker.vue";
 import PropControl from "./PropControl.vue";
+import {
+  bindingExpression,
+  bindingPreview,
+  bindingSummary,
+  compatibilityWarning,
+  findModel,
+  kindOfModelField,
+  literalForSchema,
+  valueKind,
+  type BindingPickPayload,
+  type BindingPreview,
+  type ValueKind,
+} from "../utils/bindingSources";
 
 const props = defineProps<{
   nodeId: string;
@@ -135,6 +197,9 @@ const extraValue = computed(() => {
   return Object.keys(out).length ? out : undefined;
 });
 
+const pickerOpen = ref(false);
+const pickerKey = ref("");
+
 function valueOf(key: string): any {
   const v = node.value?.props?.[key];
   return v !== undefined ? v : properties.value[key]?.default;
@@ -150,6 +215,63 @@ function labelOf(key: string): string {
 }
 function bindableOf(key: string): boolean {
   return properties.value[key]?.["x-bindable"] !== false;
+}
+function expectedTypeOf(key: string): string {
+  return properties.value[key]?.type ?? "";
+}
+
+const TYPE_LABELS: Record<string, string> = {
+  string: "文本",
+  number: "数字",
+  integer: "整数",
+  boolean: "布尔",
+  array: "数组",
+  object: "对象",
+};
+function typeLabelOf(key: string): string {
+  const type = expectedTypeOf(key);
+  if (!type) return "";
+  return `${TYPE_LABELS[type] || type} ${type}`;
+}
+
+function bindingSummaryOf(key: string): string {
+  return bindingSummary(isBound(key) ? boundValue(key) : null, {
+    datasources: props.datasources,
+    models: props.models,
+    variables: schema.schema?.variables,
+  });
+}
+function bindingExpressionOf(key: string): string {
+  return isBound(key) ? bindingExpression(boundValue(key)) : "";
+}
+function bindingLoopVarOf(key: string): string {
+  return isBound(key) ? boundValue(key).loopVar || "" : "";
+}
+function previewOf(key: string): BindingPreview {
+  if (!isBound(key)) return { available: false, text: "未绑定" };
+  return bindingPreview(boundValue(key), {
+    datasources: props.datasources,
+    models: props.models,
+    variables: schema.schema?.variables,
+  });
+}
+
+function actualKindOf(key: string): ValueKind | "any" {
+  if (!isBound(key)) return "any";
+  const preview = previewOf(key);
+  if (preview.available) return valueKind(preview.value);
+  const binding = boundValue(key);
+  if (binding.source === "model" && binding.field) {
+    const model = findModel(props.models, binding.ref);
+    const name = binding.field.split(".").pop()?.replace(/\[.*\]/g, "") || "";
+    const field = (model?.fields ?? []).find((f) => f.name === name);
+    if (field) return kindOfModelField(field.type);
+  }
+  return "any";
+}
+function compatOf(key: string): string {
+  if (!isBound(key)) return "";
+  return compatibilityWarning(expectedTypeOf(key), actualKindOf(key));
 }
 
 function kindOf(key: string): any {
@@ -186,26 +308,35 @@ function setBound(key: string, b: DataBinding) {
   history.run(`绑定属性 ${key}`, () => schema.setNodeProp(props.nodeId, key, { __binding__: b }));
 }
 
-function toBinding(key: string) {
-  const b: DataBinding = { source: "variable", ref: variableKeys.value[0] ?? "" };
-  history.run(`绑定属性 ${key}`, () => schema.setNodeProp(props.nodeId, key, { __binding__: b }));
-}
-
 function toLiteral(key: string) {
   const ps = properties.value[key];
-  const fallback =
-    ps?.default !== undefined
-      ? ps.default
-      : ps?.type === "number" || ps?.type === "integer"
-        ? 0
-        : ps?.type === "boolean"
-          ? false
-          : ps?.type === "array"
-            ? []
-            : ps?.type === "object"
-              ? {}
-              : "";
+  const fallback = literalForSchema(ps);
   history.run(`属性 ${key}`, () => schema.setNodeProp(props.nodeId, key, fallback));
+  ElMessage.success(`已清除「${labelOf(key)}」的绑定`);
+}
+
+const pickerBinding = computed<DataBinding | null>(() => {
+  const key = pickerKey.value;
+  return key && isBound(key) ? boundValue(key) : null;
+});
+const pickerLabel = computed(() => (pickerKey.value ? labelOf(pickerKey.value) : ""));
+const pickerExpectedType = computed(() => (pickerKey.value ? expectedTypeOf(pickerKey.value) : ""));
+
+function openPicker(key: string) {
+  pickerKey.value = key;
+  pickerOpen.value = true;
+}
+
+function onPick(payload: BindingPickPayload) {
+  const key = pickerKey.value;
+  if (!key) return;
+  if (payload.mode === "expression") {
+    setProp(key, `{{${payload.expression}}}`);
+    ElMessage.success(`已写入「${labelOf(key)}」的模板表达式`);
+  } else {
+    setBound(key, payload.binding);
+    ElMessage.success(`已绑定「${labelOf(key)}」`);
+  }
 }
 
 function generateColumns() {
@@ -293,6 +424,56 @@ function setExtra(v: any) {
 .wp-prop-label {
   font-weight: 600;
   color: var(--el-text-color-primary);
+}
+.wp-prop-type {
+  flex: none;
+}
+.wp-prop-bind-summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+}
+.wp-prop-binding-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.wp-prop-expression {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--el-fill-color-light);
+}
+.wp-prop-preview {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 5px;
+  font-size: 11px;
+}
+.wp-prop-preview .k {
+  color: var(--el-text-color-secondary);
+  flex: none;
+}
+.wp-prop-preview .v {
+  color: var(--el-text-color-regular);
+  overflow-wrap: anywhere;
+}
+.wp-prop-preview .hint {
+  color: var(--el-text-color-placeholder);
+}
+.wp-prop-warn {
+  margin-bottom: 6px;
 }
 .wp-prop-desc {
   font-size: 11px;

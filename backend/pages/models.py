@@ -9,6 +9,8 @@ class Page(models.Model):
         ("page", "页面"),
         ("layout", "布局"),
         ("popup", "弹窗"),
+        # 可复用区块的承载页面：不在运行时路由中直接访问，仅作为区块 schema 源。
+        ("fragment", "区块片段"),
     )
     STATUS_CHOICES = (
         ("draft", "草稿"),
@@ -62,6 +64,44 @@ class PageVersion(models.Model):
 
     def __str__(self):
         return f"{self.page_id} v{self.version}"
+
+
+class PageBlock(models.Model):
+    """可复用页面区块（共享布局的基础单元）。
+
+    schema 源优先取 ``page``（type=fragment 的承载页面，路径 ``__blocks__/<code>``），
+    这样区块可以直接在现有设计器中编辑；``schema`` 仅在没有承载页面时作为兜底源，
+    保存格式为节点子树 ``{"rootId": str, "nodes": {id: node}}``。
+    """
+
+    app = models.ForeignKey("appcore.App", on_delete=models.CASCADE, related_name="blocks")
+    name = models.CharField(max_length=200)
+    code = models.CharField(max_length=80)
+    description = models.TextField(blank=True, default="")
+    page = models.ForeignKey(
+        Page,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="blocks",
+        help_text="承载页面（type=fragment）；为空时使用 schema 字段",
+    )
+    schema = models.JSONField(default=dict, blank=True)
+    version = models.IntegerField(default=0)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "wp_page_blocks"
+        ordering = ("-updated_at", "-id")
+        unique_together = (("app", "code"),)
+        indexes = [models.Index(fields=["app", "updated_at"])]
+
+    def __str__(self):
+        return f"{self.app_id}/{self.code}"
 
 
 class Asset(models.Model):

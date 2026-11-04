@@ -19,7 +19,9 @@ urlpatterns = [
     path("api/templates/", include("appcore.template_urls")),
     path("api/security/", include("core.security_urls")),
     path("api/enterprise/", include("core.enterprise_urls")),
+    path("api/collab/", include("collab.urls")),
     path("api/pages/", include("pages.urls")),
+    path("", include("pages.block_urls")),
     path("api/assets/", include("pages.assets_urls")),
     # 组件注册表
     path("api/components/", include("components.urls")),

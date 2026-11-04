@@ -37,7 +37,7 @@
 
     <!-- 结构化组件：运行态不包 div，避免破坏 Element 插槽协议 -->
     <template v-else-if="isWrapperless">
-      <component :is="comp" v-if="comp" ref="compRef" v-bind="elementProps" v-on="eventHandlers" :wp-node-id="node.id" :data-wp-node="node.id" :data-motion="node.motion || undefined">
+      <component :is="comp" v-if="comp" ref="compRef" v-bind="elementProps" v-on="eventHandlers" :wp-node-id="node.id" :data-wp-node="node.id" :data-motion="node.motion || undefined" :wp-mode="mode">
         <template v-for="(children, slotName) in namedSlotNodes" :key="slotName" #[slotName]>
           <NodeRenderer
             v-for="child in children"
@@ -83,7 +83,7 @@
       @dragstart.stop="onNodeDragStart"
       @click="onNodeClick"
     >
-      <component :is="comp" v-if="comp" ref="compRef" v-bind="elementProps" :wp-node-id="node.id" :data-motion="node.motion || undefined" v-on="eventHandlers">
+      <component :is="comp" v-if="comp" ref="compRef" v-bind="elementProps" :wp-node-id="node.id" :data-motion="node.motion || undefined" :wp-mode="mode" v-on="eventHandlers">
         <template v-for="(children, slotName) in namedSlotNodes" :key="slotName" #[slotName]>
           <NodeRenderer
             v-for="child in children"
@@ -708,15 +708,30 @@ const canvasStyle = computed<Record<string, string>>(() => ({
   ...(props.canvasStyle || {}),
 }));
 
+const viewportWidth = ref(typeof window !== "undefined" ? window.innerWidth : 1200);
+function onViewportResize() {
+  viewportWidth.value = window.innerWidth;
+}
+onMounted(() => window.addEventListener("resize", onViewportResize));
+onUnmounted(() => window.removeEventListener("resize", onViewportResize));
+
+const activeLayout = computed(() => {
+  const base = node.value.layout;
+  if (!base || mode.value === "design") return base;
+  const key = viewportWidth.value <= 480 ? "phone" : viewportWidth.value <= 900 ? "tablet" : "desktop";
+  const override = key === "desktop" ? null : (node.value as any).responsiveLayout?.[key];
+  return override ? { ...base, ...override } : base;
+});
+
 const nodeStyle = computed<Record<string, any>>(() => {
   const s: Record<string, any> = { ...(node.value.style || {}) };
-  if (node.value.layout) {
+  if (activeLayout.value) {
     Object.assign(s, {
       position: "absolute",
-      left: `${node.value.layout.x}px`,
-      top: `${node.value.layout.y}px`,
-      width: `${node.value.layout.width}px`,
-      height: `${node.value.layout.height}px`,
+      left: `${activeLayout.value.x}px`,
+      top: `${activeLayout.value.y}px`,
+      width: `${activeLayout.value.width}px`,
+      height: `${activeLayout.value.height}px`,
     });
   }
   return s;

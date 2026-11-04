@@ -14,6 +14,7 @@ import WpFreebox from "./components/wp-freebox.vue";
 import WpText from "./components/wp-text.vue";
 import WpHeading from "./components/wp-heading.vue";
 import WpImage from "./components/wp-image.vue";
+import WpBlock from "./components/wp-block.vue";
 import WpButton from "./components/wp-button.vue";
 import WpLink from "./components/wp-link.vue";
 import WpTag from "./components/wp-tag.vue";
@@ -80,6 +81,7 @@ export const builtinComponents: Record<string, Component> = {
   "wp-text": WpText,
   "wp-heading": WpHeading,
   "wp-image": WpImage,
+  "wp-block": WpBlock,
   "wp-button": WpButton,
   "wp-link": WpLink,
   "wp-tag": WpTag,

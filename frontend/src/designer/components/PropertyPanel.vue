@@ -206,6 +206,12 @@
         <el-tab-pane label="绑定" name="binding">
           <BindingTab :node-id="selected.id" :datasources="datasources" :models="models" />
         </el-tab-pane>
+        <el-tab-pane label="质检" name="audit">
+          <QualityPanel />
+        </el-tab-pane>
+        <el-tab-pane label="评论" name="comments">
+          <CommentsPanel v-if="page" :page-id="page.id" />
+        </el-tab-pane>
         <el-tab-pane label="高级" name="advanced">
           <el-collapse v-model="advancedOpen" class="wp-pp-advanced">
             <el-collapse-item title="条件渲染" name="condition">
@@ -213,6 +219,9 @@
             </el-collapse-item>
             <el-collapse-item title="自由布局 / 对齐" name="layout">
               <LayoutTab :node-id="selected.id" />
+            </el-collapse-item>
+            <el-collapse-item title="设备布局覆盖" name="device-layout">
+              <DeviceLayoutPanel :node-id="selected.id" />
             </el-collapse-item>
           </el-collapse>
         </el-tab-pane>
@@ -236,6 +245,9 @@ import EventsTab from "./EventsTab.vue";
 import BindingTab from "./BindingTab.vue";
 import ConditionTab from "./ConditionTab.vue";
 import LayoutTab from "./LayoutTab.vue";
+import CommentsPanel from "./CommentsPanel.vue";
+import DeviceLayoutPanel from "./DeviceLayoutPanel.vue";
+import QualityPanel from "./QualityPanel.vue";
 
 const props = defineProps<{
   page: PageInfo | null;

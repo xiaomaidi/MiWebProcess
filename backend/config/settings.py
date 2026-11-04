@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     "accounts",
     # 企业 SSO（OpenID Connect）：应用级 Provider 配置 + 公开登录流程
     "enterprise_sso",
+    "collab",
     "appcore",
     "pages",
     "components",
