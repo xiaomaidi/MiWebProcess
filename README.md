@@ -1011,3 +1011,24 @@ AI 页面助手
 ## 16. License
 
 内部项目，未声明开源协议。
+
+---
+
+## License
+
+This project is licensed under the **Apache License, Version 2.0**.
+
+```text
+Copyright 2026 MiWebProcess contributors
+SPDX-License-Identifier: Apache-2.0
+```
+
+You may obtain a copy of the License at:
+
+```text
+http://www.apache.org/licenses/LICENSE-2.0
+```
+
+See [LICENSE](LICENSE) and [NOTICE](NOTICE) for the full text and
+attribution information. Third-party dependencies retain their own
+copyright notices and licenses.
