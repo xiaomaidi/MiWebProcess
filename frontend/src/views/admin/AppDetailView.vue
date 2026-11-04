@@ -75,13 +75,14 @@
             <el-table-column label="更新时间" width="160">
               <template #default="{ row }">{{ formatTime(row.updated_at) }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="330" fixed="right">
+            <el-table-column label="操作" width="390" fixed="right">
               <template #default="{ row }">
                 <el-button size="small" @click="router.push(`/design/${appId}/${row.id}`)">设计</el-button>
                 <el-button size="small" @click="router.push(`/preview/${appId}/${row.id}`)">预览</el-button>
                 <el-button size="small" @click="openRuntime(row)">线上</el-button>
                 <el-button size="small" type="primary" @click="openPagePublish(row)">发布</el-button>
                 <el-button size="small" @click="openPageVersions(row)">版本</el-button>
+                <el-button size="small" type="danger" plain @click="deletePage(row)">删除</el-button>
               </template>
             </el-table-column>
             <template #empty><el-empty description="暂无页面" :image-size="60" /></template>
@@ -861,6 +862,26 @@ async function publishPage() {
     ElMessage.error(e instanceof Error ? e.message : "发布失败");
   } finally {
     saving.value = false;
+  }
+}
+
+async function deletePage(row: PageInfo) {
+  try {
+    await ElMessageBox.confirm(
+      `删除页面「${row.name}」（${row.path}）后不可恢复，是否继续？`,
+      "删除页面",
+      { type: "error", confirmButtonText: "删除页面", cancelButtonText: "取消" }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await api.del(`/pages/${row.id}/`);
+    ElMessage.success("页面已删除");
+    await loadPages();
+    await loadReleases();
+  } catch (e: any) {
+    ElMessage.error(e?.detail || e?.message || "删除页面失败");
   }
 }
 
