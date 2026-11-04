@@ -1,53 +1,80 @@
 <template>
-  <div class="wp-admin-page">
-    <div class="wp-page-header">
-      <h2>应用管理</h2>
+  <div class="wp-admin-page app-page">
+    <div class="wp-page-header app-page-head">
+      <div class="wp-page-title-block">
+        <span class="app-eyebrow">WORKSPACE</span>
+        <h2>应用管理</h2>
+        <p class="wp-page-desc">创建、发布和运营你的业务应用。所有应用共享平台账号、数据和服务能力。</p>
+      </div>
       <div class="wp-page-actions">
         <el-button @click="autoBuildOpen = true">✨ 全自动建站</el-button>
         <el-button type="primary" @click="openCreate">新建应用</el-button>
       </div>
     </div>
 
-    <el-card>
-      <div class="wp-filter-bar">
-        <el-input
-          v-model="query"
-          placeholder="按名称/标识搜索"
-          clearable
-          style="width: 240px"
-          @keyup.enter="reload"
-          @clear="reload"
-        />
-        <el-button @click="reload">查询</el-button>
+    <div class="app-stats">
+      <div class="app-stat">
+        <span>应用总数</span>
+        <strong>{{ total }}</strong>
+        <small>当前账号可见</small>
+      </div>
+      <div class="app-stat">
+        <span>已发布</span>
+        <strong>{{ publishedCount }}</strong>
+        <small>本页统计</small>
+      </div>
+      <div class="app-stat">
+        <span>草稿</span>
+        <strong>{{ draftCount }}</strong>
+        <small>本页统计</small>
+      </div>
+      <div class="app-stat app-stat-accent">
+        <span>平台状态</span>
+        <strong>运行中</strong>
+        <small>v1.0 · Local</small>
+      </div>
+    </div>
+
+    <el-card shadow="never" class="app-list-card">
+      <div class="app-toolbar">
+        <div>
+          <strong>我的应用</strong>
+          <span class="app-toolbar-count">{{ total }} 个</span>
+        </div>
+        <div class="app-toolbar-actions">
+          <el-input
+            v-model="query"
+            placeholder="按名称或标识搜索"
+            clearable
+            style="width: 260px"
+            @keyup.enter="reload"
+            @clear="reload"
+          />
+          <el-button @click="reload">查询</el-button>
+        </div>
       </div>
 
-      <el-table :data="apps" v-loading="loading" border stripe>
-        <el-table-column label="名称" min-width="160">
-          <template #default="{ row }">
-            <el-link type="primary" @click="goDetail(row)">{{ row.name }}</el-link>
-          </template>
-        </el-table-column>
-        <el-table-column prop="code" label="标识" min-width="120" />
-        <el-table-column prop="description" label="描述" min-width="220" show-overflow-tooltip />
-        <el-table-column label="状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="statusType(row.status)" size="small">{{ statusText(row.status) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="创建时间" width="170">
-          <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
-        </el-table-column>
-        <el-table-column label="操作" width="250" fixed="right">
-          <template #default="{ row }">
-            <el-button size="small" @click="goDetail(row)">详情</el-button>
-            <el-button size="small" type="danger" plain @click="archive(row)">归档</el-button>
-            <el-button size="small" type="danger" @click="remove(row)">删除</el-button>
-          </template>
-        </el-table-column>
-        <template #empty>
-          <el-empty description="暂无应用" :image-size="60" />
-        </template>
-      </el-table>
+      <div v-loading="loading" class="app-grid">
+        <el-empty v-if="!loading && !apps.length" description="还没有应用，创建一个开始吧" :image-size="70" />
+        <article v-for="(row, index) in apps" :key="row.id" class="app-card" @click="goDetail(row)">
+          <div class="app-card-top">
+            <div class="app-avatar" :style="{ background: appGradient(row, index) }">{{ appInitial(row) }}</div>
+            <el-tag :type="statusType(row.status)" size="small" effect="light">{{ statusText(row.status) }}</el-tag>
+          </div>
+          <h3>{{ row.name }}</h3>
+          <code>{{ row.code }}</code>
+          <p>{{ row.description || "暂无描述" }}</p>
+          <div class="app-card-meta">
+            <span>创建于 {{ formatTime(row.created_at) }}</span>
+            <span class="app-card-open">打开 →</span>
+          </div>
+          <div class="app-card-actions" @click.stop>
+            <el-button size="small" type="primary" plain @click="goDetail(row)">进入应用</el-button>
+            <el-button size="small" text @click="archive(row)">归档</el-button>
+            <el-button size="small" text type="danger" @click="remove(row)">删除</el-button>
+          </div>
+        </article>
+      </div>
 
       <div class="wp-pager">
         <el-pagination
@@ -114,6 +141,22 @@ function statusText(status: string) {
 function statusType(status: string): "success" | "warning" | "info" {
   const map: Record<string, "success" | "warning" | "info"> = { published: "success", archived: "info", draft: "warning" };
   return map[status] || "info";
+}
+
+const publishedCount = computed(() => apps.value.filter((item) => item.status === "published").length);
+const draftCount = computed(() => apps.value.filter((item) => item.status === "draft").length);
+
+function appInitial(row: AppInfo) {
+  return String(row.name || row.code || "A").slice(0, 1).toUpperCase();
+}
+function appGradient(row: AppInfo, index: number) {
+  const palettes = [
+    "linear-gradient(135deg, #2563eb, #38bdf8)",
+    "linear-gradient(135deg, #7c3aed, #a78bfa)",
+    "linear-gradient(135deg, #0d9488, #2dd4bf)",
+    "linear-gradient(135deg, #ea580c, #fbbf24)",
+  ];
+  return palettes[(Number(row.id) || index) % palettes.length];
 }
 
 async function load() {
@@ -257,4 +300,33 @@ onMounted(load);
   justify-content: flex-end;
   margin-top: 12px;
 }
+.app-page-head { align-items: flex-start; }
+.app-eyebrow { display: inline-block; margin-bottom: 7px; color: #2563eb; font-size: 10px; font-weight: 700; letter-spacing: 1.8px; }
+.app-page-head h2 { margin: 0 0 6px; font-size: 28px; letter-spacing: -0.5px; }
+.app-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.app-stat { display: flex; flex-direction: column; gap: 3px; padding: 16px 18px; border: 1px solid #e8edf5; border-radius: 12px; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03); }
+.app-stat span { color: #64748b; font-size: 11px; }
+.app-stat strong { color: #0f172a; font-size: 24px; line-height: 1.2; }
+.app-stat small { color: #94a3b8; font-size: 10px; }
+.app-stat-accent { background: linear-gradient(135deg, #eff6ff, #f8fafc); border-color: #dbeafe; }
+.app-stat-accent strong { color: #2563eb; font-size: 18px; }
+.app-list-card { border-radius: 14px; }
+.app-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
+.app-toolbar strong { color: #0f172a; font-size: 14px; }
+.app-toolbar-count { margin-left: 7px; color: #94a3b8; font-size: 11px; }
+.app-toolbar-actions { display: flex; gap: 8px; }
+.app-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; min-height: 180px; }
+.app-card { display: flex; flex-direction: column; min-height: 210px; padding: 17px; border: 1px solid #e8edf5; border-radius: 13px; background: #fff; cursor: pointer; transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease; }
+.app-card:hover { transform: translateY(-2px); border-color: #bfdbfe; box-shadow: 0 12px 28px rgba(37, 99, 235, 0.1); }
+.app-card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 13px; }
+.app-avatar { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; border-radius: 12px; color: #fff; font-size: 17px; font-weight: 800; }
+.app-card h3 { margin: 0 0 4px; color: #0f172a; font-size: 15px; }
+.app-card code { width: fit-content; padding: 1px 6px; border-radius: 4px; background: #f1f5f9; color: #64748b; font-size: 10px; }
+.app-card p { flex: 1; margin: 10px 0 12px; color: #64748b; font-size: 12px; line-height: 1.6; display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.app-card-meta { display: flex; align-items: center; justify-content: space-between; color: #94a3b8; font-size: 10px; }
+.app-card-open { color: #2563eb; font-weight: 600; }
+.app-card-actions { display: flex; gap: 2px; margin-top: 12px; padding-top: 10px; border-top: 1px solid #f1f5f9; }
+.app-card-actions :deep(.el-button) { margin-left: 0; }
+@media (max-width: 1200px) { .app-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .app-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .app-grid { grid-template-columns: 1fr; } .app-stats { grid-template-columns: 1fr; } .app-toolbar { align-items: flex-start; flex-direction: column; } .app-toolbar-actions { width: 100%; } .app-toolbar-actions :deep(.el-input) { flex: 1; width: auto !important; } }
 </style>

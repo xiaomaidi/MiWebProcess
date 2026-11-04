@@ -12,22 +12,41 @@
       <div class="wp-page-actions">
         <el-button type="primary" plain @click="aiSiteOpen = true">✨ AI 建站</el-button>
         <el-button @click="router.push(`/admin/agent?app_id=${appId}`)">高级 Agent</el-button>
-        <el-button @click="router.push(`/admin/apps/${appId}/ops`)">扩展能力</el-button>
-        <el-button @click="router.push(`/admin/apps/${appId}/design-tokens`)">设计 Token</el-button>
-        <el-button @click="router.push(`/admin/apps/${appId}/settings`)">应用设置</el-button>
-        <el-button @click="router.push(`/admin/apps/${appId}/auth`)">认证设置</el-button>
-        <el-button @click="exportTemplate">导出模板</el-button>
-        <el-button @click="cloneApp">克隆应用</el-button>
-        <el-button @click="router.push(`/workflow/design/${appId}`)">工作流设计</el-button>
-        <el-button @click="openAppEdit">编辑</el-button>
         <el-button type="primary" @click="openAppPublish">发布应用</el-button>
-        <el-button
-          type="danger"
-          plain
-          :disabled="app.status === 'archived'"
-          @click="archiveApp"
-        >归档</el-button>
-        <el-button type="danger" @click="deleteApp">删除</el-button>
+        <el-dropdown @command="onAppMore">
+          <el-button>更多 <el-icon><ArrowDown /></el-icon></el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="ops">扩展能力</el-dropdown-item>
+              <el-dropdown-item command="settings">应用设置</el-dropdown-item>
+              <el-dropdown-item command="auth">认证设置</el-dropdown-item>
+              <el-dropdown-item command="tokens">设计 Token</el-dropdown-item>
+              <el-dropdown-item command="workflow">工作流设计</el-dropdown-item>
+              <el-dropdown-item divided command="edit">编辑应用</el-dropdown-item>
+              <el-dropdown-item command="export">导出模板</el-dropdown-item>
+              <el-dropdown-item command="clone">克隆应用</el-dropdown-item>
+              <el-dropdown-item divided command="archive">归档应用</el-dropdown-item>
+              <el-dropdown-item command="delete">删除应用</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
+    </div>
+
+    <div v-if="app" class="app-detail-stats">
+      <button class="app-detail-stat" @click="tab = 'pages'; onTabChange('pages')">
+        <span>页面</span><strong>{{ pages.length }}</strong><small>已搭建页面</small>
+      </button>
+      <button class="app-detail-stat" @click="tab = 'models'; onTabChange('models')">
+        <span>数据模型</span><strong>{{ models.length }}</strong><small>业务数据结构</small>
+      </button>
+      <button class="app-detail-stat" @click="tab = 'releases'; onTabChange('releases')">
+        <span>发布记录</span><strong>{{ releases.length }}</strong><small>版本与灰度</small>
+      </button>
+      <div class="app-detail-stat is-static">
+        <span>应用状态</span>
+        <strong class="is-status"><el-tag :type="appStatusType(app.status)" size="small">{{ appStatusText(app.status) }}</el-tag></strong>
+        <small>{{ app.code }}</small>
       </div>
     </div>
 
@@ -480,6 +499,7 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
+import { ArrowDown } from "@element-plus/icons-vue";
 import { api } from "@/api";
 import MasterDetailGenerator from "./MasterDetailGenerator.vue";
 import DatasourceDialog from "@/designer/components/DatasourceDialog.vue";
@@ -1262,9 +1282,24 @@ function onTabChange(name: string | number) {
   else if (t === "releases") loadReleases();
 }
 
+function onAppMore(command: string) {
+  if (command === "ops") router.push(`/admin/apps/${appId}/ops`);
+  else if (command === "settings") router.push(`/admin/apps/${appId}/settings`);
+  else if (command === "auth") router.push(`/admin/apps/${appId}/auth`);
+  else if (command === "tokens") router.push(`/admin/apps/${appId}/design-tokens`);
+  else if (command === "workflow") router.push(`/workflow/design/${appId}`);
+  else if (command === "edit") openAppEdit();
+  else if (command === "export") exportTemplate();
+  else if (command === "clone") cloneApp();
+  else if (command === "archive") archiveApp();
+  else if (command === "delete") deleteApp();
+}
+
 onMounted(() => {
   loadApp();
   loadPages();
+  loadModels();
+  loadReleases();
   loadWorkflows();
 });
 </script>
@@ -1313,4 +1348,13 @@ onMounted(() => {
   font-size: 12px;
   margin: 0;
 }
+.app-detail-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.app-detail-stat { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 14px 16px; border: 1px solid #e8edf5; border-radius: 12px; background: #fff; text-align: left; cursor: pointer; transition: border-color 0.16s ease, box-shadow 0.16s ease; }
+.app-detail-stat:hover { border-color: #bfdbfe; box-shadow: 0 8px 20px rgba(37, 99, 235, 0.08); }
+.app-detail-stat.is-static { cursor: default; }
+.app-detail-stat span { color: #64748b; font-size: 11px; }
+.app-detail-stat strong { color: #0f172a; font-size: 24px; line-height: 1.2; }
+.app-detail-stat small { color: #94a3b8; font-size: 10px; }
+.app-detail-stat .is-status { padding-top: 4px; }
+@media (max-width: 900px) { .app-detail-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style>
