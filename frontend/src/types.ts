@@ -386,10 +386,51 @@ export interface WorkflowInstance {
   updated_at?: string;
 }
 
+/** 数据模型字段类型（与后端 datamodels/models.py 的 FIELD_TYPES 对齐）。 */
+export type DataModelFieldType =
+  | "string"
+  | "longtext"
+  | "richtext"
+  | "email"
+  | "phone"
+  | "url"
+  | "password"
+  | "select"
+  | "multiselect"
+  | "tags"
+  | "number"
+  | "integer"
+  | "decimal"
+  | "money"
+  | "percent"
+  | "boolean"
+  | "date"
+  | "datetime"
+  | "time"
+  | "duration"
+  | "json"
+  | "reference"
+  | "references"
+  | "image"
+  | "file"
+  /** 多文件附件：URL 数组（最多 20 个，单项 <= 500 字符）。 */
+  | "attachments"
+  | "user"
+  | "department"
+  | "auto_number"
+  | "formula"
+  | "created_at"
+  | "updated_at"
+  | "geolocation"
+  | "signature"
+  | "barcode"
+  | "rating"
+  | "color";
+
 export interface DataModelField {
   name: string;
   label?: string;
-  type: string;
+  type: DataModelFieldType | string;
   required?: boolean;
   default?: any;
   unique?: boolean;

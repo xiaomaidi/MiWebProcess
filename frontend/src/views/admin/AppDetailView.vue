@@ -397,6 +397,7 @@
                     <el-option-group label="文件">
                       <el-option label="图片" value="image" />
                       <el-option label="附件" value="file" />
+                      <el-option label="多附件" value="attachments" />
                       <el-option label="签名" value="signature" />
                     </el-option-group>
                     <el-option-group label="系统">
@@ -482,7 +483,7 @@
     <el-dialog v-model="fieldConfigVisible" title="字段配置" width="560px">
       <el-form label-position="top">
         <el-form-item v-if="fieldConfigTarget?.type === 'formula'" label="公式表达式">
-          <el-input v-model="fieldConfig.formula" placeholder="例如 price * quantity，或 round(price * quantity, 2)" />
+          <el-input v-model="fieldConfig.formula" placeholder='例如 price * quantity，或 sum_related("明细","amount","order_no", order_no)' />
           <span class="wp-muted-cell" style="margin-top: 4px">支持 + - * / % **、比较、and/or/not、round/min/max/abs/len/sum</span>
         </el-form-item>
         <el-form-item label="选项 JSON（单选/多选/标签必填）">

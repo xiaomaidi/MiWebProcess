@@ -27,6 +27,9 @@ def get_app_role(user, app) -> str | None:
         return None
     if is_platform_admin(user):
         return "owner"
+    # 应用创建者天然是 owner；历史数据不一定有 AppMember 行。
+    if getattr(app, "owner_id", None) and getattr(user, "id", None) == app.owner_id:
+        return "owner"
     member = getattr(app, "members", None)
     if member is not None:
         m = member.filter(user=user).first()

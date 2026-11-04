@@ -26,6 +26,12 @@ const routes = [
       meta: { public: true },
     },
     {
+      path: "/sso/callback",
+      name: "sso-callback",
+      component: () => import("@/views/SsoCallbackView.vue"),
+      meta: { public: true },
+    },
+    {
       path: "/auth/:appCode/login",
       name: "app-auth-login",
       component: () => import("@/views/AppAuthView.vue"),
@@ -54,6 +60,11 @@ const routes = [
           path: "apps",
           name: "admin-apps",
           component: () => import("@/views/admin/AppsView.vue"),
+        },
+        {
+          path: "enterprise",
+          name: "admin-enterprise",
+          component: () => import("@/views/admin/EnterpriseConsoleView.vue"),
         },
         {
           path: "agent",

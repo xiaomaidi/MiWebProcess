@@ -8,7 +8,7 @@ FIELD_TYPES = (
     "number", "integer", "decimal", "money", "percent",
     "boolean", "date", "datetime", "time", "duration",
     "json", "reference", "references",
-    "image", "file", "user", "department",
+    "image", "file", "attachments", "user", "department",
     "auto_number", "formula", "created_at", "updated_at",
     "geolocation", "signature", "barcode", "rating", "color",
 )

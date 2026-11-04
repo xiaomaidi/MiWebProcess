@@ -57,16 +57,25 @@
               style="width: 100%"
             />
             <el-color-picker v-else-if="field.type === 'color'" v-model="values[field.name]" />
-            <el-select
+            <RelationSelect
               v-else-if="['reference', 'references'].includes(field.type)"
               v-model="values[field.name]"
+              :app-id="appId"
+              :ref-model="field.ref_model || ''"
               :multiple="field.type === 'references'"
-              filterable
-              clearable
-              style="width: 100%"
-            >
-              <el-option v-for="o in refOptions[field.name] || []" :key="String(o.value)" :label="o.label" :value="o.value" />
-            </el-select>
+              :options="field.options || []"
+              :ref-display="field.ref_display || ''"
+              :placeholder="field.placeholder || field.description || `请选择${field.label || field.name}`"
+              :disabled="disabled"
+            />
+            <AttachmentField
+              v-else-if="field.type === 'attachments'"
+              v-model="values[field.name]"
+              :app-id="appId"
+              :accept="field.accept || ''"
+              :max="20"
+              :disabled="disabled"
+            />
             <div v-else-if="['image', 'file'].includes(field.type)" class="wp-upload-field">
               <el-image v-if="field.type === 'image' && values[field.name]" :src="values[field.name]" fit="cover" class="wp-upload-preview" preview-teleported :preview-src-list="[values[field.name]]" />
               <el-link v-if="field.type === 'file' && values[field.name]" :href="values[field.name]" target="_blank" type="primary">查看附件</el-link>
@@ -131,6 +140,8 @@ import { contentAppCode } from "../content-api";
 import RichText from "./rich-text.vue";
 import SignaturePad from "./signature-pad.vue";
 import GeoPicker from "./geo-picker.vue";
+import AttachmentField from "./attachment-field.vue";
+import RelationSelect from "./relation-select.vue";
 import type { DataModelField, DataModelInfo, RuntimeScope } from "@/types";
 import { inject } from "vue";
 
@@ -190,7 +201,6 @@ const values = reactive<Record<string, any>>({});
 const appId = ref(0);
 const userOptions = ref<any[]>([]);
 const deptOptions = ref<any[]>([]);
-const refOptions = reactive<Record<string, any[]>>({});
 const uploading = ref("");
 
 const effectiveFields = computed<DataModelField[]>(() =>
@@ -206,7 +216,7 @@ const normalizedColumns = computed(() => {
   return n > 0 ? Math.min(3, n) : 1;
 });
 const spanOf = (field: DataModelField) => {
-  if (field.type === "json") return 24;
+  if (["json", "attachments"].includes(field.type)) return 24;
   return Math.floor(24 / normalizedColumns.value);
 };
 
@@ -215,8 +225,18 @@ const rules = computed<Record<string, any[]>>(() => {
   for (const f of effectiveFields.value) {
     const list: any[] = [];
     if (f.required) {
-      const trigger = ["number", "boolean", "date", "reference"].includes(f.type) ? "change" : "blur";
-      list.push({ required: true, message: `请填写${f.label || f.name}`, trigger });
+      const arrayType = ["references", "attachments", "multiselect", "tags"].includes(f.type);
+      const changeTriggered = [
+        "number", "boolean", "date", "reference", "references", "attachments", "multiselect", "tags",
+      ].includes(f.type);
+      const rule: Record<string, any> = {
+        required: true,
+        message: `请填写${f.label || f.name}`,
+        trigger: changeTriggered ? "change" : "blur",
+      };
+      // 空数组对默认 string 规则不算空，显式声明 type=array 才能拦住必填附件/多选。
+      if (arrayType) rule.type = "array";
+      list.push(rule);
     }
     if (Array.isArray(f.rules)) list.push(...f.rules);
     if (list.length) out[f.name] = list;
@@ -230,6 +250,8 @@ function defaultValue(field: DataModelField): any {
   if (field.type === "boolean") return false;
   if (field.type === "number") return 0;
   if (field.type === "json") return "";
+  if (field.type === "attachments" || field.type === "references") return [];
+  if (field.type === "reference") return null;
   return "";
 }
 
@@ -242,7 +264,19 @@ function setDefaults() {
 async function loadModel() {
   const id = Number(props.modelId);
   if (!id) return;
-  if (Array.isArray(props.fields) && props.fields.length) return;
+  if (Array.isArray(props.fields) && props.fields.length) {
+    // 字段由外部传入时仍要解析 appId：附件上传与关联远程搜索都依赖它。
+    if (!appId.value && !props.publicToken && getToken()) {
+      try {
+        const model = await api.get<DataModelInfo>(`/models/${id}/`);
+        appId.value = Number(model.app_id || 0);
+        await loadAuxiliary();
+      } catch {
+        /* 公开表单 / 无权限时保持 appId=0，组件回退到字段静态选项 */
+      }
+    }
+    return;
+  }
   try {
     const model = await api.get<DataModelInfo>(`/models/${id}/`);
     appId.value = Number(model.app_id || 0);
@@ -272,7 +306,6 @@ async function loadAuxiliary() {
   const fields = effectiveFields.value;
   const wantsUsers = fields.some((f) => f.type === "user");
   const wantsDepts = fields.some((f) => f.type === "department");
-  const refFields = fields.filter((f) => ["reference", "references"].includes(f.type) && f.ref_model);
   try {
     if (wantsUsers) {
       const data = await api.get<any>("/org/users/?size=200");
@@ -285,27 +318,6 @@ async function loadAuxiliary() {
       deptOptions.value = data.results || data || [];
     }
   } catch { deptOptions.value = []; }
-  if (!refFields.length) return;
-  try {
-    const models = await api.get<any>(`/apps/${appId.value}/models/`);
-    const list = Array.isArray(models) ? models : models.results || [];
-    for (const field of refFields) {
-      if (field.options?.length) {
-        refOptions[field.name] = field.options;
-        continue;
-      }
-      const target = list.find((m: any) => m.name === field.ref_model);
-      if (!target) continue;
-      const records = await api.get<any>(`/models/${target.id}/records/?page=1&size=100`);
-      const rows = records.results || records || [];
-      refOptions[field.name] = rows.map((row: any) => {
-        const data = row.data || {};
-        return { value: row.id, label: data.title || data.name || data.label || `#${row.id}` };
-      });
-    }
-  } catch {
-    /* directory/ref options are optional */
-  }
 }
 
 function pickFile(field: DataModelField) {

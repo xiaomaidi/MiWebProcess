@@ -65,6 +65,34 @@
       <el-empty v-else description="暂无变更记录" :image-size="50" />
     </el-dialog>
 
+    <el-dialog v-model="importVisible" title="导入记录" width="620px" destroy-on-close>
+      <el-alert title="支持 CSV / XLSX；表头可使用字段名或中文字段名。" type="info" :closable="false" show-icon />
+      <el-form label-position="top" style="margin-top: 14px">
+        <el-form-item label="文件">
+          <input type="file" accept=".csv,.xlsx" @change="onImportFile" />
+        </el-form-item>
+        <el-form-item label="导入模式">
+          <el-radio-group v-model="importMode">
+            <el-radio label="append">追加</el-radio>
+            <el-radio label="upsert">更新或追加</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item v-if="importMode === 'upsert'" label="匹配字段（key_field）">
+          <el-input v-model="importKeyField" placeholder="例如 code；也可以使用 id" />
+        </el-form-item>
+      </el-form>
+      <el-alert v-if="importResult" :title="`导入完成：创建 ${importResult.created}，更新 ${importResult.updated}，跳过 ${importResult.skipped}`" :type="importResult.errors?.length ? 'warning' : 'success'" :closable="false" show-icon />
+      <el-table v-if="importResult?.errors?.length" :data="importResult.errors" size="small" border style="margin-top: 10px; max-height: 220px">
+        <el-table-column prop="row" label="行" width="60" />
+        <el-table-column prop="field" label="字段" width="120" />
+        <el-table-column prop="message" label="错误" min-width="240" show-overflow-tooltip />
+      </el-table>
+      <template #footer>
+        <el-button @click="importVisible = false">关闭</el-button>
+        <el-button type="primary" :loading="importing" @click="submitImport">开始导入</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="createVisible" :title="`新增${model?.name || '记录'}`" width="640px" destroy-on-close>
       <AutoForm
         v-if="createVisible && model"
@@ -85,6 +113,7 @@
 import { computed, defineAsyncComponent, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
+import { getToken } from "@/api";
 import { api } from "@/api";
 import type { DataModelField, DataModelInfo } from "@/types";
 import AiContentDialog from "@/views/AiContentDialog.vue";
@@ -98,6 +127,12 @@ const modelId = Number(route.params.modelId);
 const model = ref<DataModelInfo | null>(null);
 const loading = ref(false);
 const createVisible = ref(false);
+const importVisible = ref(false);
+const importing = ref(false);
+const importFile = ref<File | null>(null);
+const importMode = ref<"append" | "upsert">("append");
+const importKeyField = ref("");
+const importResult = ref<any>(null);
 const aiContentOpen = ref(false);
 const aiDefaults = ref<Record<string, any>>({});
 const historyVisible = ref(false);
@@ -116,12 +151,14 @@ const columns = computed(() => {
       : undefined;
     const isImage = f.type === "image" || f.type === "signature";
     const isFile = f.type === "file";
+    const isAttachments = f.type === "attachments";
     return {
       key: f.name,
       prop: f.name,
       label: f.label || f.name,
       minWidth: ["json", "geolocation", "longtext", "richtext"].includes(f.type) ? 220 : 120,
-      cellType: isImage ? "image" : isFile ? "link" : ["boolean", "select", "color"].includes(f.type) ? "tag" : "text",
+      cellType: isImage ? "image" : isFile ? "link" : isAttachments ? "attachments" : ["boolean", "select", "color"].includes(f.type) ? "tag" : "text",
+      showOverflowTooltip: !isAttachments,
       hrefField: isFile ? f.name : undefined,
       target: isFile ? "_blank" : undefined,
       ...(f.type === "boolean"
@@ -207,6 +244,61 @@ async function revertHistory(log: any) {
     window.dispatchEvent(new CustomEvent("wp:data-changed", { detail: { modelId } }));
   } catch (e: any) {
     ElMessage.error(e?.message || "回滚失败");
+  }
+}
+
+function onImportFile(event: Event) {
+  const input = event.target as HTMLInputElement;
+  importFile.value = input.files?.[0] || null;
+  importResult.value = null;
+}
+async function submitImport() {
+  if (!importFile.value) {
+    ElMessage.warning("请选择 CSV 或 XLSX 文件");
+    return;
+  }
+  importing.value = true;
+  importResult.value = null;
+  try {
+    const extra: Record<string, string> = { mode: importMode.value };
+    if (importMode.value === "upsert" && importKeyField.value.trim()) extra.key_field = importKeyField.value.trim();
+    importResult.value = await api.upload<any>(`/models/${modelId}/records/import/`, importFile.value, "file", extra);
+    ElMessage.success("导入完成");
+    window.dispatchEvent(new CustomEvent("wp:data-changed", { detail: { modelId } }));
+  } catch (e: any) {
+    ElMessage.error(e?.detail || e?.message || "导入失败");
+  } finally {
+    importing.value = false;
+  }
+}
+async function downloadFile(base: string, filename: string) {
+  const resp = await fetch(base, { headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {} });
+  if (!resp.ok) throw new Error(`导出失败 (${resp.status})`);
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+async function exportRecords(format: "xlsx" | "csv") {
+  try {
+    const ext = format === "xlsx" ? "xlsx" : "csv";
+    await downloadFile(`/api/models/${modelId}/records/export/?format=${format}`, `${model.value?.name || "records"}.${ext}`);
+  } catch (e: any) {
+    ElMessage.error(e?.message || "导出失败");
+  }
+}
+async function printRecords() {
+  try {
+    const resp = await fetch(`/api/models/${modelId}/records/print/`, { headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {} });
+    if (!resp.ok) throw new Error(`打印视图加载失败 (${resp.status})`);
+    const html = await resp.text();
+    const win = window.open("", "_blank");
+    if (win) { win.document.open(); win.document.write(html); win.document.close(); }
+  } catch (e: any) {
+    ElMessage.error(e?.message || "打印失败");
   }
 }
 

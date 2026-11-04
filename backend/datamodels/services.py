@@ -6,9 +6,11 @@ import operator
 import re
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlparse
 
 from rest_framework.exceptions import ValidationError
 
+from .aggregates import aggregate_functions
 from .models import FIELD_TYPES, DataModel, DataRecord
 
 NAME_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
@@ -16,6 +18,37 @@ DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2}(\.\d+)?)?)?(Z|[
 TIME_RE = re.compile(r"^\d{2}:\d{2}(:\d{2})?$")
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 PHONE_RE = re.compile(r"^[+\d][\d\s-]{5,24}$")
+# 多文件附件：URL 数组，最多 20 个、单个 URL 最长 500 字符。
+ATTACHMENTS_MAX_COUNT = 20
+ATTACHMENTS_MAX_URL_LENGTH = 500
+
+
+def _is_attachment_url(value: Any) -> bool:
+    """附件 URL：支持 http(s) 绝对地址、协议相对地址和站内 /media 相对地址。"""
+    if not isinstance(value, str) or not value or len(value) > ATTACHMENTS_MAX_URL_LENGTH:
+        return False
+    if any(ch.isspace() for ch in value):
+        return False
+    if value.startswith("/"):
+        return True
+    parsed = urlparse(value)
+    return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+
+
+def attachment_problem(value: Any) -> str:
+    """返回 attachments 值的校验错误（空串表示通过）；[] 与 null 均合法。"""
+    if not isinstance(value, list):
+        return "必须是附件 URL 数组"
+    if len(value) > ATTACHMENTS_MAX_COUNT:
+        return f"最多允许 {ATTACHMENTS_MAX_COUNT} 个附件"
+    for item in value:
+        if not isinstance(item, str) or not item:
+            return "每个附件必须是非空 URL 字符串"
+        if len(item) > ATTACHMENTS_MAX_URL_LENGTH:
+            return f"附件 URL 不能超过 {ATTACHMENTS_MAX_URL_LENGTH} 字符"
+        if not _is_attachment_url(item):
+            return f"附件 URL 格式不正确: {item[:80]!r}"
+    return ""
 
 
 def validate_fields_spec(fields: list, app=None) -> list:
@@ -78,7 +111,7 @@ def validate_fields_spec(fields: list, app=None) -> list:
             item["write_roles"] = [r for r in f["write_roles"] if r in ("viewer", "editor", "owner")]
         if isinstance(f.get("mask_roles"), list):
             item["mask_roles"] = [r for r in f["mask_roles"] if r in ("viewer", "editor", "owner")]
-        if f.get("ui") in ("text", "textarea", "richtext", "select", "multi-select", "date", "datetime", "time", "number", "switch", "image", "file", "color", "rating"):
+        if f.get("ui") in ("text", "textarea", "richtext", "select", "multi-select", "date", "datetime", "time", "number", "switch", "image", "file", "attachments", "color", "rating"):
             item["ui"] = f["ui"]
         if ftype in ("reference", "references"):
             item["ref_model"] = str(ref_model)
@@ -107,6 +140,9 @@ def _check_type(value: Any, ftype: str, field_name: str) -> bool:
         return isinstance(value, (str, int, float)) and not isinstance(value, bool)
     if ftype == "json":
         return isinstance(value, (dict, list))
+    if ftype == "attachments":
+        # 元素级 URL/数量/长度在 validate_data 中给出更精确的错误。
+        return isinstance(value, list)
     if ftype == "reference":
         return isinstance(value, int) and not isinstance(value, bool) and value > 0
     if ftype == "references":
@@ -137,9 +173,10 @@ _FORMULA_FUNCS = {
 }
 
 
-def evaluate_formula(expression: str, values: dict) -> Any:
+def evaluate_formula(expression: str, values: dict, extra_funcs: dict | None = None) -> Any:
     """Small, side-effect-free formula evaluator for computed fields."""
     tree = ast.parse(expression, mode="eval")
+    funcs = {**_FORMULA_FUNCS, **(extra_funcs or {})}
 
     def run(node):
         if isinstance(node, ast.Expression):
@@ -170,8 +207,8 @@ def evaluate_formula(expression: str, values: dict) -> Any:
             return True
         if isinstance(node, ast.IfExp):
             return run(node.body) if run(node.test) else run(node.orelse)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in _FORMULA_FUNCS:
-            return _FORMULA_FUNCS[node.func.id](*[run(a) for a in node.args])
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in funcs:
+            return funcs[node.func.id](*[run(a) for a in node.args])
         if isinstance(node, (ast.List, ast.Tuple)):
             return [run(e) for e in node.elts]
         raise ValueError("不支持的公式语法")
@@ -373,6 +410,11 @@ def validate_data(
         if not _check_type(value, spec["type"], name):
             errors.append(f"字段 {name} 类型应为 {spec['type']}")
             continue
+        if spec["type"] == "attachments":
+            problem = attachment_problem(value)
+            if problem:
+                errors.append(f"字段 {name} {problem}")
+            continue
         if spec["type"] in ("reference", "references"):
             target_name = spec.get("ref_model")
             target = DataModel.objects.filter(name=target_name, app=model.app).first()
@@ -408,11 +450,12 @@ def validate_data(
                 errors.append(f"字段 {name} 值 {value!r} 已存在（唯一约束）")
     formula_fields = [(name, spec) for name, spec in specs.items() if spec.get("type") == "formula" and spec.get("formula")]
     if formula_fields:
+        aggregates = aggregate_functions(model)
         for _ in range(len(formula_fields) + 1):
             changed = False
             for name, spec in formula_fields:
                 try:
-                    value = evaluate_formula(str(spec["formula"]), cleaned)
+                    value = evaluate_formula(str(spec["formula"]), cleaned, aggregates)
                 except (ValueError, TypeError, ZeroDivisionError, SyntaxError):
                     continue
                 if cleaned.get(name) != value:

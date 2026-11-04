@@ -211,6 +211,8 @@ class ScheduledJob(models.Model):
         ("noop", "空任务"),
         ("webhook.test", "Webhook 测试"),
         ("notification.test", "通知测试"),
+        ("notification.template", "发送通知模板"),
+        ("webhook.broadcast", "Webhook 广播"),
     )
     app = models.ForeignKey(App, on_delete=models.CASCADE, related_name="scheduled_jobs")
     name = models.CharField(max_length=160)

@@ -13,7 +13,7 @@
     <el-tabs v-model="tab" @tab-change="loadTab">
       <el-tab-pane label="文件" name="files">
         <div class="toolbar">
-          <input ref="fileInput" type="file" hidden @change="uploadFile" />
+          <input ref="fileInput" type="file" multiple hidden @change="uploadFile" />
           <el-button type="primary" :loading="uploading" @click="fileInput?.click()">上传文件</el-button>
           <el-button @click="loadFiles">刷新</el-button>
         </div>
@@ -44,6 +44,40 @@
               <el-button size="small" @click="sendTemplate(row)">发送</el-button>
               <el-button size="small" type="danger" link @click="deleteTemplate(row)">删除</el-button>
             </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+
+      <el-tab-pane label="通知记录" name="notification-logs">
+        <div class="toolbar">
+          <el-button @click="loadLogs">刷新</el-button>
+        </div>
+        <el-table :data="logs" v-loading="loading" border stripe>
+          <el-table-column prop="created_at" label="时间" width="170" />
+          <el-table-column prop="channel" label="渠道" width="90" />
+          <el-table-column prop="recipient" label="接收人" width="150" />
+          <el-table-column prop="subject" label="主题" min-width="200" show-overflow-tooltip />
+          <el-table-column label="状态" width="90">
+            <template #default="{ row }"><el-tag :type="row.status === 'sent' ? 'success' : 'danger'" size="small">{{ row.status }}</el-tag></template>
+          </el-table-column>
+          <el-table-column prop="error" label="错误" min-width="180" show-overflow-tooltip />
+        </el-table>
+      </el-tab-pane>
+
+      <el-tab-pane label="消息中心" name="messages">
+        <div class="toolbar">
+          <el-button @click="loadMessages">刷新</el-button>
+          <el-button @click="markAllRead">全部已读</el-button>
+        </div>
+        <el-table :data="messages" v-loading="loading" border stripe>
+          <el-table-column prop="created_at" label="时间" width="170" />
+          <el-table-column prop="subject" label="标题" min-width="220" show-overflow-tooltip />
+          <el-table-column prop="content" label="内容" min-width="260" show-overflow-tooltip />
+          <el-table-column label="状态" width="90">
+            <template #default="{ row }"><el-tag :type="row.read_at ? 'info' : 'warning'" size="small">{{ row.read_at ? '已读' : '未读' }}</el-tag></template>
+          </el-table-column>
+          <el-table-column label="操作" width="90">
+            <template #default="{ row }"><el-button v-if="!row.read_at" size="small" link type="primary" @click="markRead(row)">标记已读</el-button></template>
           </el-table-column>
         </el-table>
       </el-tab-pane>
@@ -81,6 +115,7 @@
           <el-table-column label="操作" width="170">
             <template #default="{ row }">
               <el-button size="small" @click="testWebhook(row)">测试</el-button>
+              <el-button size="small" @click="openDeliveries(row)">记录</el-button>
               <el-button size="small" type="danger" link @click="deleteWebhook(row)">删除</el-button>
             </template>
           </el-table-column>
@@ -141,14 +176,33 @@
         <el-form-item label="处理器">
           <el-select v-model="jobForm.handler" style="width:100%">
             <el-option label="空任务" value="noop" /><el-option label="Webhook 测试" value="webhook.test" /><el-option label="通知测试" value="notification.test" />
+            <el-option label="发送通知模板" value="notification.template" />
+            <el-option label="Webhook 广播" value="webhook.broadcast" />
           </el-select>
         </el-form-item>
-        <el-form-item label="Cron"><el-input v-model="jobForm.cron" /></el-form-item>
+        <el-form-item label="Cron"><el-input v-model="jobForm.cron" placeholder="0 2 * * *" /></el-form-item>
+        <el-form-item label="启用"><el-switch v-model="jobForm.enabled" /></el-form-item>
+        <el-form-item label="Payload JSON">
+          <el-input v-model="jobForm.payloadText" type="textarea" :rows="4" placeholder='{"template_key":"approval_pending","recipient":"a@b.com"}' />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogOpen = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="saveDialog">保存</el-button>
       </template>
+    </el-dialog>
+
+    <el-dialog v-model="deliveryVisible" title="Webhook 投递记录" width="720px">
+      <el-table :data="deliveries" border size="small" v-loading="deliveryLoading">
+        <el-table-column prop="created_at" label="时间" width="170" />
+        <el-table-column prop="event" label="事件" width="150" />
+        <el-table-column prop="status_code" label="状态码" width="80" />
+        <el-table-column label="结果" width="80">
+          <template #default="{ row }"><el-tag :type="row.ok ? 'success' : 'danger'" size="small">{{ row.ok ? "成功" : "失败" }}</el-tag></template>
+        </el-table-column>
+        <el-table-column prop="error" label="错误" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="response" label="响应" min-width="180" show-overflow-tooltip />
+      </el-table>
     </el-dialog>
   </div>
 </template>
@@ -157,7 +211,7 @@
 import { onMounted, reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { api, getToken } from "@/api";
+import { api } from "@/api";
 
 const route = useRoute();
 const router = useRouter();
@@ -175,12 +229,17 @@ const templates = ref<any[]>([]);
 const tokens = ref<any[]>([]);
 const webhooks = ref<any[]>([]);
 const jobs = ref<any[]>([]);
+const logs = ref<any[]>([]);
+const messages = ref<any[]>([]);
+const deliveryVisible = ref(false);
+const deliveryLoading = ref(false);
+const deliveries = ref<any[]>([]);
 const newToken = ref("");
 
 const templateForm = reactive({ key: "", name: "", channel: "inapp", subject: "", content: "" });
 const tokenForm = reactive({ name: "", scopes: ["records:read"], expires_days: 0 });
 const webhookForm = reactive({ name: "", url: "", events: "record.created", secret: "" });
-const jobForm = reactive({ name: "", code: "", handler: "noop", cron: "0 2 * * *" });
+const jobForm = reactive({ name: "", code: "", handler: "noop", cron: "0 2 * * *", enabled: true, payloadText: "{}" });
 
 async function loadFiles() {
   loading.value = true;
@@ -202,9 +261,30 @@ async function loadJobs() {
   loading.value = true;
   try { jobs.value = (await api.get<any>(`/apps/${appId}/jobs/`)).results || []; } finally { loading.value = false; }
 }
+async function loadLogs() {
+  loading.value = true;
+  try { logs.value = (await api.get<any>(`/apps/${appId}/notification-logs/`)).results || []; } finally { loading.value = false; }
+}
+async function loadMessages() {
+  loading.value = true;
+  try { messages.value = (await api.get<any>(`/apps/${appId}/messages/`)).results || []; } finally { loading.value = false; }
+}
+async function markRead(row: any) {
+  await api.post(`/apps/${appId}/messages/${row.id}/read/`, {});
+  row.read_at = new Date().toISOString();
+}
+async function markAllRead() {
+  const unread = messages.value.filter((row) => !row.read_at);
+  for (const row of unread) await api.post(`/apps/${appId}/messages/${row.id}/read/`, {});
+  await loadMessages();
+  ElMessage.success("已全部标记为已读");
+}
+
 function loadTab() {
   if (tab.value === "files") loadFiles();
   else if (tab.value === "notifications") loadNotifications();
+  else if (tab.value === "notification-logs") loadLogs();
+  else if (tab.value === "messages") loadMessages();
   else if (tab.value === "tokens") loadTokens();
   else if (tab.value === "webhooks") loadWebhooks();
   else loadJobs();
@@ -212,26 +292,17 @@ function loadTab() {
 
 async function uploadFile(event: Event) {
   const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (!file) return;
+  const filesToUpload = Array.from(input.files || []);
+  input.value = "";
+  if (!filesToUpload.length) return;
   uploading.value = true;
   try {
-    const form = new FormData();
-    form.append("file", file);
-    const resp = await fetch(`/api/assets/?app_id=${appId}`, {
-      method: "POST",
-      headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
-      body: form,
-    });
-    if (!resp.ok) throw new Error(`上传失败 (${resp.status})`);
-    ElMessage.success("上传成功");
+    for (const file of filesToUpload) {
+      await api.upload(`/assets/?app_id=${appId}`, file);
+    }
     await loadFiles();
-  } catch (e: any) {
-    ElMessage.error(e?.message || "上传失败");
-  } finally {
-    uploading.value = false;
-    input.value = "";
-  }
+    ElMessage.success(`已上传 ${filesToUpload.length} 个文件`);
+  } finally { uploading.value = false; }
 }
 async function deleteFile(row: any) {
   await ElMessageBox.confirm(`删除文件 ${row.name}？`, "确认");
@@ -272,6 +343,17 @@ function openWebhook() {
   Object.assign(webhookForm, { name: "", url: "", events: "record.created", secret: "" });
   dialog.value = "webhook"; dialogTitle.value = "新建 Webhook"; dialogOpen.value = true;
 }
+async function openDeliveries(row: any) {
+  deliveryVisible.value = true;
+  deliveryLoading.value = true;
+  deliveries.value = [];
+  try {
+    deliveries.value = (await api.get<any>(`/apps/${appId}/webhooks/${row.id}/deliveries/`)).results || [];
+  } catch (e: any) {
+    ElMessage.error(e?.message || "加载投递记录失败");
+  } finally { deliveryLoading.value = false; }
+}
+
 async function testWebhook(row: any) {
   const result = await api.post<any>(`/apps/${appId}/webhooks/${row.id}/test/`);
   ElMessage[result.ok ? "success" : "warning"](result.ok ? "投递成功" : `失败：${result.error || result.status_code}`);
@@ -284,7 +366,7 @@ async function deleteWebhook(row: any) {
 }
 
 function openJob() {
-  Object.assign(jobForm, { name: "", code: "", handler: "noop", cron: "0 2 * * *" });
+  Object.assign(jobForm, { name: "", code: "", handler: "noop", cron: "0 2 * * *", enabled: true, payloadText: "{}" });
   dialog.value = "job"; dialogTitle.value = "新建定时任务"; dialogOpen.value = true;
 }
 async function runJob(row: any) {
@@ -315,7 +397,13 @@ async function saveDialog() {
       });
       await loadWebhooks();
     } else if (dialog.value === "job") {
-      await api.post(`/apps/${appId}/jobs/`, { ...jobForm });
+      let payload: any = {};
+      try { payload = jobForm.payloadText.trim() ? JSON.parse(jobForm.payloadText) : {}; }
+      catch { ElMessage.error("Payload JSON 格式不正确"); return; }
+      await api.post(`/apps/${appId}/jobs/`, {
+        name: jobForm.name, code: jobForm.code, handler: jobForm.handler,
+        cron: jobForm.cron, enabled: jobForm.enabled, payload,
+      });
       await loadJobs();
     }
     ElMessage.success("保存成功");

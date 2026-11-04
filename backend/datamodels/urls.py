@@ -14,6 +14,8 @@ urlpatterns = [
     path("<int:model>/records/<int:pk>/publish/", views.record_publish, name="record_publish"),
     path("<int:model>/records/<int:pk>/revert/", views.record_revert, name="record_revert"),
     path("<int:model>/records/export/", views.record_export, name="record_export"),
+    path("<int:model>/records/import/", views.record_import, name="record_import"),
+    path("<int:model>/records/print/", views.record_print, name="record_print"),
     path("<int:model>/records/batch/", views.record_batch_delete, name="record_batch"),
     path("<int:model>/records/<int:pk>/", views.record_detail, name="record_detail"),
 ]

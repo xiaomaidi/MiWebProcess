@@ -1,13 +1,14 @@
 """数据模型 / 记录 REST 端点。"""
 from __future__ import annotations
 
-import csv
+import logging
+import re
 
-from django.http import HttpResponse
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, renderer_classes
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -15,6 +16,19 @@ from rest_framework.response import Response
 from core.audit import snapshot_instance, write_audit_log
 from appcore.modules import module_for_model, require_module
 from core.permissions import get_app_role, is_platform_admin
+from datamodels.import_export import (
+    ImportFileError,
+    RecordCsvRenderer,
+    RecordXlsxRenderer,
+    csv_response,
+    export_field_specs,
+    export_headers,
+    export_rows,
+    parse_import_file,
+    print_html_response,
+    xlsx_response,
+    xlsx_supported,
+)
 from datamodels.models import DATA_SCOPES, DataModel, DataRecord, ReportSubscription
 from datamodels.serializers import DataModelSerializer, DataRecordSerializer, ReportSubscriptionSerializer
 from datamodels.services import (
@@ -30,6 +44,8 @@ from datamodels.services import (
     visible_data,
 )
 from wp_utils import get_app, paginate_items, require_app_role
+
+logger = logging.getLogger(__name__)
 
 
 def _audit(request, action: str, object_type: str, before=None, after=None, app_id=None, object_id=None):
@@ -504,36 +520,238 @@ def record_publish(request, model, pk: int):
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
+@renderer_classes([RecordCsvRenderer, RecordXlsxRenderer])
 def record_export(request, model):
-    """GET /api/models/{model}/records/export/ → 当前筛选结果的 CSV。"""
-    from datamodels.services import dynamic_query
+    """GET /api/models/{model}/records/export/?format=xlsx|csv → 当前筛选结果导出。
 
+    ``format`` 是 DRF 保留查询参数，renderer 列表让 ``?format=xlsx`` 通过内容协商；
+    实际响应由本视图直接返回 HttpResponse。
+    """
     model_obj = _get_model_for_records(model)
     require_app_role(request.user, model_obj.app, "viewer")
     role, admin = _scope_context(request.user, model_obj.app)
     require_action(model_obj, role, "export", admin=admin)
+    export_format = str(request.query_params.get("format") or "csv").strip().lower()
+    if export_format not in ("csv", "xlsx"):
+        raise ValidationError({"detail": "format 仅支持 csv 或 xlsx"})
+    if export_format == "xlsx" and not xlsx_supported():
+        raise ValidationError({"detail": "服务端未安装 openpyxl，暂不支持 Excel 导出，请改用 CSV"})
+    params = {k: request.query_params.get(k) for k in request.query_params if k != "format"}
+    rows = apply_row_scope(model_obj, dynamic_query(model_obj, params), request.user, admin=admin)
+    specs = export_field_specs(model_obj, role, admin=admin)
+    headers = export_headers(specs)
+    body = export_rows(model_obj, specs, rows, role, admin=admin)
+    filename = f"{model_obj.name}-记录.{export_format}"
+    fallback = f"model-{model_obj.id}-records.{export_format}"
+    if export_format == "xlsx":
+        return xlsx_response(filename, fallback, headers, body, sheet_title=model_obj.name)
+    return csv_response(filename, fallback, headers, body)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def record_print(request, model):
+    """GET /api/models/{model}/records/print/ → 打印友好 HTML（浏览器打印 / 另存 PDF）。"""
+    model_obj = _get_model_for_records(model)
+    require_module(model_obj.app, module_for_model(model_obj.name))
+    require_app_role(request.user, model_obj.app, "viewer")
+    role, admin = _scope_context(request.user, model_obj.app)
+    require_action(model_obj, role, "view", admin=admin)
     params = {k: request.query_params.get(k) for k in request.query_params}
     rows = apply_row_scope(model_obj, dynamic_query(model_obj, params), request.user, admin=admin)
-    field_names = [
-        f.get("name") for f in (model_obj.fields or [])
-        if isinstance(f, dict) and (admin or not (f.get("read_roles") or []) or role in (f.get("read_roles") or []))
-    ]
-    response = HttpResponse(content_type="text/csv; charset=utf-8")
-    response["Content-Disposition"] = f'attachment; filename="model-{model_obj.id}.csv"'
-    response.write("\ufeff")
-    writer = csv.writer(response)
-    writer.writerow(["id", *field_names])
-    for row in rows:
-        data = visible_data(model_obj, row.get("data") or {}, role, admin=admin)
-        values = []
-        for value in [row.get("id"), *[data.get(name) for name in field_names]]:
-            text = "" if value is None else str(value)
-            # 防 CSV 公式注入
-            if text.startswith(("=", "+", "-", "@")):
-                text = "'" + text
-            values.append(text)
-        writer.writerow(values)
-    return response
+    specs = export_field_specs(model_obj, role, admin=admin)
+    return print_html_response(model_obj, specs, rows, role, admin=admin, filters=params)
+
+
+def _import_row_errors(row: int, exc: ValidationError) -> list[dict]:
+    """把 validate_data 的 ValidationError 拆成 ``{row, field, message}``。"""
+    detail = getattr(exc, "detail", None)
+    raw_messages: list[str] = []
+    if isinstance(detail, dict):
+        if "detail" in detail:
+            raw_messages.extend(_flatten_detail(detail["detail"]))
+        else:
+            for key, value in detail.items():
+                raw_messages.extend(f"{key}: {item}" for item in _flatten_detail(value))
+    else:
+        raw_messages.extend(_flatten_detail(detail))
+    messages: list[str] = []
+    for raw in raw_messages:
+        messages.extend(part.strip() for part in re.split(r"[;；]\s*", raw) if part.strip())
+    if not messages:
+        messages = [str(exc)]
+    out = []
+    for message in messages:
+        match = re.match(r"^(?:缺少必填字段|字段)\s+([A-Za-z_][A-Za-z0-9_]*)", message)
+        out.append({"row": row, "field": match.group(1) if match else "", "message": message})
+    return out
+
+
+def _flatten_detail(value) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, dict):
+        return [str(item) for item in value.values()]
+    if isinstance(value, (list, tuple)):
+        return [str(item) for item in value]
+    return [str(value)]
+
+
+def _import_target(model_obj: DataModel, key_field: str, item: dict):
+    """upsert 按 key_field 找已有记录；key_field=id 时按记录主键匹配。"""
+    if key_field == "id":
+        record_id = item.get("id")
+        if record_id is None:
+            raise ValidationError({"detail": "缺少匹配字段 id"})
+        return DataRecord.objects.filter(model=model_obj, id=record_id).first()
+    key_value = item["values"].get(key_field)
+    if key_value in (None, ""):
+        raise ValidationError({"detail": f"缺少匹配字段 {key_field}"})
+    return DataRecord.objects.filter(model=model_obj, **{f"data__{key_field}": key_value}).first()
+
+
+def _create_import_record(request, model_obj: DataModel, data: dict, role: str | None, admin: bool) -> DataRecord:
+    """与 record_list_create 一致的写入校验 / 默认部门 / 事件 / 审计 / 审核流。"""
+    cleaned = validate_data(model_obj, data, partial=False, user=request.user, role=role, admin=admin)
+    guard_department_assignment(model_obj, cleaned, request.user, admin=admin)
+    if (model_obj.data_scope or "all") in ("dept", "dept_and_children"):
+        dept_field = (model_obj.dept_field or "dept").strip() or "dept"
+        if not cleaned.get(dept_field):
+            default_dept = default_department_value(request.user, model_obj)
+            if default_dept:
+                cleaned[dept_field] = default_dept
+    record = DataRecord.objects.create(
+        model=model_obj, data=cleaned, created_by=request.user, updated_by=request.user,
+    )
+    try:
+        from appcore.events import emit_event
+
+        emit_event(model_obj.app, "record.created", {"id": record.id, "model_id": model_obj.id, "data": cleaned})
+    except Exception:
+        pass
+    _audit(
+        request, "record.create", "datamodel_record",
+        after={"data": cleaned}, app_id=model_obj.app_id, object_id=record.id,
+    )
+    _apply_review_flow(model_obj, record, request.user, is_new=True)
+    return record
+
+
+def _update_import_record(
+    request, model_obj: DataModel, record: DataRecord, data: dict, role: str | None, admin: bool,
+) -> DataRecord:
+    """upsert 更新：全量校验合并后的数据（与 PATCH 一致，但要求必填完整）。"""
+    before_data = dict(record.data or {})
+    merged = {**before_data, **data}
+    cleaned = validate_data(
+        model_obj, merged, partial=False, exclude_pk=record.id,
+        user=request.user, role=role, admin=admin,
+    )
+    guard_department_assignment(model_obj, cleaned, request.user, admin=admin)
+    record.data = cleaned
+    record.updated_by = request.user
+    record.save()
+    try:
+        from appcore.events import emit_event
+
+        emit_event(model_obj.app, "record.updated", {"id": record.id, "model_id": model_obj.id, "data": cleaned})
+    except Exception:
+        pass
+    _audit(
+        request, "record.update", "datamodel_record",
+        before={"data": before_data}, after={"data": cleaned}, app_id=model_obj.app_id, object_id=record.id,
+    )
+    _apply_review_flow(model_obj, record, request.user)
+    return record
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def record_import(request, model):
+    """POST /api/models/{model}/records/import/ → 批量导入 CSV / XLSX。
+
+    multipart 字段：``file``（必填）、``mode``（append|upsert）、``key_field``（upsert 可选）。
+    """
+    model_obj = _get_model_for_records(model)
+    require_module(model_obj.app, module_for_model(model_obj.name))
+    require_app_role(request.user, model_obj.app, "editor")
+    role, admin = _scope_context(request.user, model_obj.app)
+    require_action(model_obj, role, "create", admin=admin)
+
+    mode = str(request.data.get("mode") or "append").strip().lower()
+    if mode not in ("append", "upsert"):
+        raise ValidationError({"detail": "mode 必须是 append 或 upsert"})
+    uploaded = request.FILES.get("file")
+    if uploaded is None:
+        raise ValidationError({"detail": "请上传 file 文件（.csv 或 .xlsx）"})
+
+    specs = model_obj.field_map()
+    key_field = str(request.data.get("key_field") or "").strip()
+    if mode == "upsert":
+        if key_field and key_field != "id" and key_field not in specs:
+            raise ValidationError({"detail": f"key_field {key_field} 不在模型字段中"})
+        if not key_field:
+            unique_fields = [name for name, spec in specs.items() if spec.get("unique")]
+            if len(unique_fields) != 1:
+                raise ValidationError(
+                    {"detail": "upsert 模式需要 key_field：模型没有唯一字段，或唯一字段不唯一"}
+                )
+            key_field = unique_fields[0]
+        require_action(model_obj, role, "update", admin=admin)
+
+    try:
+        rows, blank_rows = parse_import_file(uploaded, model_obj)
+    except ImportFileError as exc:
+        raise ValidationError({"detail": str(exc)}) from exc
+
+    created = 0
+    updated = 0
+    errors: list[dict] = []
+    with transaction.atomic():
+        for item in rows:
+            try:
+                # 单行 savepoint：某行失败不拖垮整批导入。
+                with transaction.atomic():
+                    target = _import_target(model_obj, key_field, item) if mode == "upsert" else None
+                    if target is None:
+                        _create_import_record(request, model_obj, item["values"], role, admin)
+                        created += 1
+                    else:
+                        _update_import_record(request, model_obj, target, item["values"], role, admin)
+                        updated += 1
+            except ValidationError as exc:
+                errors.extend(_import_row_errors(item["row"], exc))
+            except Exception as exc:  # noqa: BLE001 - 单行异常记录后继续
+                logger.exception("record import row %s failed", item["row"])
+                errors.append({"row": item["row"], "field": "", "message": f"保存失败：{exc}"})
+
+    total = len(rows) + blank_rows
+    _audit(
+        request,
+        "record.import",
+        "datamodel",
+        after={
+            "mode": mode,
+            "key_field": key_field,
+            "created": created,
+            "updated": updated,
+            "skipped": blank_rows,
+            "errors": len(errors),
+            "total": total,
+        },
+        app_id=model_obj.app_id,
+        object_id=model_obj.id,
+    )
+    return Response(
+        {
+            "created": created,
+            "updated": updated,
+            "skipped": blank_rows,
+            "errors": errors,
+            "total": total,
+        }
+    )
+
 
 
 @api_view(["POST"])

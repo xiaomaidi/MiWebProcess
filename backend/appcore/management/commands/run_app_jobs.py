@@ -73,7 +73,7 @@ class Command(BaseCommand):
             if job.last_run_at and timezone.localtime(job.last_run_at).strftime("%Y%m%d%H%M") == now.strftime("%Y%m%d%H%M"):
                 continue
             request = APIRequestFactory().post("/")
-            request.user = job.created_by
+            request.user = job.created_by or job.app.owner
             try:
                 scheduled_job_run(request, job.app_id, job.id)
                 ran += 1

@@ -100,6 +100,8 @@
           </el-button>
         </el-form>
 
+        <SsoButtons v-if="config?.enabled && !isRegister" :app-code="appCode" :redirect="config?.redirect_path || ''" />
+
         <div v-if="config?.enabled" class="mauth-switch">
           <template v-if="isRegister">
             已有账号？
@@ -129,6 +131,7 @@ import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { api, ApiError } from "@/api";
 import { useAuthStore } from "@/store/auth";
+import SsoButtons from "@/components/enterprise/SsoButtons.vue";
 
 interface AppAuthConfig {
   app_code: string;

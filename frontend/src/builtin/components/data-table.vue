@@ -84,6 +84,26 @@
               :preview-src-list="[String(cellValue(col, scope.row) || '')]"
             />
 
+            <div v-else-if="col.cellType === 'attachments'" class="wp-cell-attachments">
+              <template v-if="attachmentUrls(col, scope.row).length">
+                <el-link
+                  v-for="(url, ui) in attachmentUrls(col, scope.row).slice(0, 3)"
+                  :key="`${ui}-${url}`"
+                  :href="url"
+                  target="_blank"
+                  type="primary"
+                  class="wp-cell-attachment"
+                  :title="url"
+                >
+                  {{ attachmentName(url) }}
+                </el-link>
+                <el-tag v-if="attachmentUrls(col, scope.row).length > 3" size="small" type="info">
+                  +{{ attachmentUrls(col, scope.row).length - 3 }}
+                </el-tag>
+              </template>
+              <span v-else class="wp-cell-muted">—</span>
+            </div>
+
             <el-progress
               v-else-if="col.cellType === 'progress'"
               :percentage="Math.max(0, Math.min(100, Number(cellValue(col, scope.row)) || 0))"
@@ -185,7 +205,7 @@ export interface ColumnDef {
   align?: "left" | "center" | "right";
   headerAlign?: "left" | "center" | "right";
   showOverflowTooltip?: boolean;
-  /** text | tag | button | link | image | progress | actions | component */
+  /** text | tag | button | link | image | attachments | progress | actions | component */
   cellType?: string;
   tagType?: string;
   tagTypeField?: string;
@@ -337,15 +357,17 @@ const autoColumnDefs = computed<ColumnDef[]>(() =>
       : undefined;
     const isImage = f.type === "image" || f.type === "signature";
     const isFile = f.type === "file";
+    const isAttachments = f.type === "attachments";
     const isTag = ["boolean", "select", "color"].includes(f.type);
     return {
       key: f.name,
       prop: f.name,
       label: f.label || f.name,
-      width: f.type === "boolean" ? 90 : isImage ? 90 : isFile ? 150 : undefined,
-      cellType: isImage ? "image" : isFile ? "link" : isTag ? "tag" : "text",
+      width: f.type === "boolean" ? 90 : isImage ? 90 : isFile ? 150 : isAttachments ? 240 : undefined,
+      cellType: isImage ? "image" : isFile ? "link" : isAttachments ? "attachments" : isTag ? "tag" : "text",
       hrefField: isFile ? f.name : undefined,
       target: isFile ? "_blank" : undefined,
+      showOverflowTooltip: !isAttachments,
       valueMap: f.type === "boolean" ? { true: "是", false: "否" } : optionMap,
       tagType: f.type === "boolean" ? "success" : f.type === "color" ? "info" : undefined,
       prefix: f.type === "money" ? "¥" : undefined,
@@ -372,12 +394,30 @@ function cellValue(col: ColumnDef, row: Record<string, any>): any {
   const prefix = col.prefix || "";
   const suffix = col.suffix || "";
   if (value === null || value === undefined) return value === 0 ? 0 : "";
+  if (Array.isArray(value)) return `${prefix}${value.join("，")}${suffix}`;
   return `${prefix}${value}${suffix}`;
 }
 
 function cellText(col: ColumnDef, row: Record<string, any>): string {
   const value = cellValue(col, row);
   return value === null || value === undefined ? "" : String(value);
+}
+
+function attachmentUrls(col: ColumnDef, row: Record<string, any>): string[] {
+  const key = col.prop || col.key || "";
+  const raw = key ? row?.[key] : undefined;
+  const list = Array.isArray(raw) ? raw : typeof raw === "string" && raw ? [raw] : [];
+  return list.filter((item): item is string => typeof item === "string" && item.length > 0);
+}
+
+function attachmentName(url: string): string {
+  try {
+    const path = url.split("?")[0].split("#")[0];
+    const raw = decodeURIComponent(path.substring(path.lastIndexOf("/") + 1));
+    return raw.replace(/^[0-9a-f]{8,}-[0-9a-f]{4}-/i, "") || url;
+  } catch {
+    return url;
+  }
 }
 
 function cellTagType(col: ColumnDef, row: Record<string, any>): any {
@@ -532,9 +572,16 @@ async function reload() {
     };
     if (props.search || searchValue.value) params.search = props.search || searchValue.value;
     if (sortProp.value && sortOrder.value) params.sort = sortOrder.value === "ascending" ? sortProp.value : `-${sortProp.value}`;
-    const res = scope
-      ? await scope.record.list(modelId, params)
-      : await api.get<any>(`/models/${modelId}/records/`, { silent: true });
+    let res: any;
+    if (scope) {
+      res = await scope.record.list(modelId, params);
+    } else {
+      const query = new URLSearchParams();
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== null && value !== undefined && value !== "") query.set(key, String(value));
+      }
+      res = await api.get<any>(`/models/${modelId}/records/?${query.toString()}`, { silent: true });
+    }
     const rawRows = Array.isArray(res?.results) ? res.results : Array.isArray(res) ? res : [];
     remoteRows.value = rawRows.map(normalizeRow);
     remoteTotal.value = Number(res?.count) || remoteRows.value.length;
@@ -646,6 +693,22 @@ watch(
 }
 .wp-cell-text {
   word-break: break-word;
+}
+.wp-cell-attachments {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.wp-cell-attachment {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wp-cell-muted {
+  color: var(--el-text-color-placeholder);
 }
 .wp-row-actions {
   display: flex;

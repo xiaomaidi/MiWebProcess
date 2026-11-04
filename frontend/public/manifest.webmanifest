@@ -1,0 +1,12 @@
+{
+  "name": "MiWebProcess 企业平台",
+  "short_name": "MiWebProcess",
+  "description": "可视化低代码企业应用平台",
+  "start_url": "/admin/apps",
+  "display": "standalone",
+  "background_color": "#f4f6fb",
+  "theme_color": "#0f172a",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

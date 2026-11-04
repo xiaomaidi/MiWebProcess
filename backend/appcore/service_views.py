@@ -149,7 +149,15 @@ def notification_template_send(request, app_id: int, pk: int):
             if not recipient:
                 raise ValueError("邮件通知需要 recipient")
             send_mail(subject or item.name, content, None, [recipient], fail_silently=False)
-        # 站内信/Webhook 先落通知日志，外部投递由 Webhook 服务处理。
+        elif item.channel == "webhook":
+            endpoint = item.app.webhooks.filter(enabled=True).first()
+            if endpoint is None:
+                raise ValueError("没有启用的 Webhook")
+            delivery = deliver_webhook(endpoint, "notification.send", {
+                "template": item.key, "subject": subject, "content": content, "payload": payload,
+            })
+            if not delivery.ok:
+                raise ValueError(f"Webhook 投递失败: {delivery.error or delivery.status_code}")
     except Exception as exc:  # noqa: BLE001
         status_value = "failed"
         error = str(exc)
@@ -408,6 +416,45 @@ def scheduled_job_run(request, app_id: int, pk: int):
                 content=json.dumps(item.payload or {}, ensure_ascii=False), status="sent",
             )
             result = {"ok": True, "log_id": log.id}
+        elif item.handler == "notification.template":
+            payload = item.payload or {}
+            key = str(payload.get("template_key") or payload.get("key") or "").strip()
+            template = item.app.notification_templates.filter(key=key, enabled=True).first()
+            if template is None:
+                raise ValueError(f"通知模板不存在或未启用: {key}")
+            variables = payload.get("variables") or payload
+            subject = _render(template.subject, variables)
+            content = _render(template.content, variables)
+            recipient = str(payload.get("recipient") or "").strip()
+            delivery_error = ""
+            if template.channel == "email":
+                if not recipient:
+                    raise ValueError("邮件通知需要 recipient")
+                send_mail(subject or template.name, content, None, [recipient], fail_silently=False)
+            elif template.channel == "webhook":
+                endpoint = item.app.webhooks.filter(enabled=True).first()
+                if endpoint is None:
+                    raise ValueError("没有启用的 Webhook")
+                delivery = deliver_webhook(endpoint, "notification.template", {
+                    "template": key, "subject": subject, "content": content, "payload": variables,
+                })
+                if not delivery.ok:
+                    delivery_error = delivery.error or str(delivery.status_code)
+            log = NotificationLog.objects.create(
+                app=item.app, template=template, channel=template.channel, recipient=recipient,
+                subject=subject, content=content, status="failed" if delivery_error else "sent",
+                error=delivery_error,
+            )
+            result = {"ok": not delivery_error, "log_id": log.id}
+        elif item.handler == "webhook.broadcast":
+            payload = item.payload or {}
+            event = str(payload.get("event") or "job.broadcast")
+            endpoints = list(item.app.webhooks.filter(enabled=True))
+            if not endpoints:
+                raise ValueError("没有启用的 Webhook")
+            deliveries = [deliver_webhook(endpoint, event, payload) for endpoint in endpoints]
+            ok_count = sum(1 for d in deliveries if d.ok)
+            result = {"ok": ok_count == len(deliveries), "delivered": ok_count, "total": len(deliveries)}
         item.last_status = "success" if result.get("ok") else "failed"
         item.last_error = "" if result.get("ok") else str(result)
     except Exception as exc:  # noqa: BLE001
