@@ -40,6 +40,39 @@
 - 组件状态：hover / active / focus / disabled 样式与 props 覆盖。
 - 组件变体：新增、复制、删除、启用；变体 props / style 覆盖基础值。
 
+### schema 操作日志 / CRDT-style 合并
+- `PageSchemaOperation` append-only：node.upsert / node.delete / schema.meta。
+- 每节点 Lamport clock；counter 大者胜，相同 counter 按 clientId 字典序。
+- `__oplog__` 持久化节点 clock 与 tombstone，支持重放/删除/复活。
+- API：`GET/POST /api/pages/{id}/schema/ops/`；WS：`/ws/designer-ops/{pageId}/`。
+- 前端 diff/merge/rebase；全量 schema 保存仍负责持久化与版本冲突。
+
+### Redis Channel Layer / 多 worker
+- `REDIS_URL` 配置后使用 `channels_redis.core.RedisChannelLayer`，共享 group 广播与缓存。
+- 未配置时保持 InMemoryChannelLayer，仅单进程。
+- `python manage.py check_realtime_channels --ping` 诊断。
+- 多 Daphne 进程 / uvicorn workers 需同一 REDIS_URL；详见 `docs/deployment/Redis.md`。
+
+### 锁等待队列与超时
+- 锁被占用时服务端排队，广播 queue position / timeoutAt。
+- 释放/过期自动授予下一位；客户端 toast 显示等待位置与倒计时，可取消。
+- 默认队列 30s、每节点最多 50 人；超时返回 lock-timeout。
+
+### 区块版本可视化预览
+- 版本对比支持 结构 / 视觉 / 列表 三视图。
+- 视觉视图按 snapshot layout 绘制只读双栏迷你画布；长页面回退为缩进流。
+- 点击节点查看字段 diff；最多 200 节点/侧。
+
+### 变体数据绑定
+- 变体 props 支持 `{__binding__: ...}` 与 `{{...}}` 表达式；运行时先合并变体再走绑定解析。
+- 设计态按页面变量预览，缺失时使用 defaultValue / 占位符。
+- 变体 style 绑定不支持，会在 UI/控制台提示。
+
+### Playwright 双用户 / 锁冲突
+- `frontend/e2e/lock-conflict.spec.ts`：远程锁阻止拖动、徽标清除、布局不变。
+- `frontend/e2e/schema-sync.spec.ts`：两个上下文同页编辑，B 无刷新收敛。
+- `npm run test:e2e` 覆盖 11 条设计器/后台回归。
+
 ### 实时协作
 - `/ws/designer-lock/{pageId}/` 服务端原子节点锁，TTL 90s，心跳续期。
 - 锁冲突返回 `lock-denied`；断开 / 释放广播 release。

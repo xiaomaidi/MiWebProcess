@@ -175,7 +175,15 @@ export type ComponentStates = Partial<Record<ComponentStateName, ComponentStateO
 export interface ComponentVariant {
   id: string;
   name: string;
-  props?: Record<string, any>;
+  /**
+   * 覆盖基础 props。值可为普通字面量、数据绑定对象 `{ __binding__: DataBinding }`
+   * 或 `{{...}}` 模板表达式；合并后由运行态绑定解析器统一求值。
+   */
+  props?: Record<string, BoundValue>;
+  /**
+   * 覆盖基础样式。仅支持静态 CSS 值；绑定对象 / `{{...}}` 字符串不会解析，
+   * 设计器会提示「暂不支持」，运行时也不会写入样式。
+   */
   style?: Record<string, any>;
 }
 

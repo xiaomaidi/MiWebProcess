@@ -5,11 +5,19 @@
 - REDIS_URL：缺省时缓存/Channels/Celery 全部降级为本地内存 + eager 任务。
 - USE_S3=1 + S3_ENDPOINT_URL/S3_ACCESS_KEY/...：媒体存储切到 MinIO/S3。
 """
+import logging
 import os
 from datetime import timedelta
+from importlib.util import find_spec
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+logger = logging.getLogger(__name__)
+
+# Channels Redis Channel Layer 默认值（与 channels_redis 文档示例一致）。
+DEFAULT_CHANNEL_LAYER_CAPACITY = 1500
+DEFAULT_CHANNEL_LAYER_EXPIRY = 60
 
 
 def _load_env_file(path: Path) -> None:
@@ -45,6 +53,79 @@ def _env_bool(key: str, default: bool = False) -> bool:
     if v is None:
         return default
     return v.strip().lower() in ("1", "true", "yes", "on")
+
+
+def _env_int(key: str, default: int, *, minimum: int = 1) -> int:
+    """读取正整数环境变量；未配置/非法/过小时回退默认值（不启动失败）。"""
+    raw = os.environ.get(key)
+    if raw is None or not str(raw).strip():
+        return default
+    try:
+        value = int(str(raw).strip())
+    except (TypeError, ValueError):
+        logger.warning("Invalid %s=%r; using default %s", key, raw, default)
+        return default
+    if value < minimum:
+        logger.warning("%s=%s is below minimum %s; using default %s", key, value, minimum, default)
+        return default
+    return value
+
+
+def channel_layer_dependencies() -> dict[str, bool]:
+    """检测可选依赖是否可导入（只查模块位置，不导入、不连接 Redis）。"""
+    available: dict[str, bool] = {}
+    for package in ("channels_redis", "redis"):
+        try:
+            available[package] = find_spec(package) is not None
+        except (ImportError, ModuleNotFoundError, ValueError):
+            available[package] = False
+    return available
+
+
+def build_channel_layers(
+    redis_url: str | None = None,
+    capacity: int = DEFAULT_CHANNEL_LAYER_CAPACITY,
+    expiry: int = DEFAULT_CHANNEL_LAYER_EXPIRY,
+) -> dict:
+    """构造 CHANNEL_LAYERS，不导入 channels_redis、也不建立 Redis 连接。
+
+    - redis_url 为空：进程内 InMemoryChannelLayer（单进程开发/测试）。
+    - redis_url 有值：channels_redis.core.RedisChannelLayer（多 worker 共享组）。
+    """
+    if redis_url:
+        return {
+            "default": {
+                "BACKEND": "channels_redis.core.RedisChannelLayer",
+                "CONFIG": {
+                    "hosts": [redis_url],
+                    "capacity": int(capacity),
+                    "expiry": int(expiry),
+                },
+            }
+        }
+    return {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    }
+
+
+def build_caches(redis_url: str | None = None) -> dict:
+    """构造 CACHES：有 Redis 时共享缓存（presence 计数多 worker 一致），否则 LocMem。"""
+    if redis_url:
+        return {
+            "default": {
+                "BACKEND": "django.core.cache.backends.redis.RedisCache",
+                "LOCATION": redis_url,
+                "KEY_PREFIX": "wp",
+            }
+        }
+    return {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "wp-cache",
+        }
+    }
 
 
 SECRET_KEY = _env("SECRET_KEY", "dev-insecure-secret-key-change-me")
@@ -150,33 +231,24 @@ else:
     }
 
 # ---------------------------------------------------------------- 缓存 / Redis
-REDIS_URL = _env("REDIS_URL")
+# REDIS_URL 同时驱动缓存、Celery 与 Channels。留空 = 单进程内存模式（仅开发）。
+# 生产多 ASGI worker 必须配置，否则各进程的 Channel Layer 互不可见。
+REDIS_URL = (_env("REDIS_URL", "") or "").strip() or None
+CHANNEL_LAYER_CAPACITY = _env_int("CHANNEL_LAYER_CAPACITY", DEFAULT_CHANNEL_LAYER_CAPACITY)
+CHANNEL_LAYER_EXPIRY = _env_int("CHANNEL_LAYER_EXPIRY", DEFAULT_CHANNEL_LAYER_EXPIRY)
+CACHES = build_caches(REDIS_URL)
+CHANNEL_LAYERS = build_channel_layers(REDIS_URL, CHANNEL_LAYER_CAPACITY, CHANNEL_LAYER_EXPIRY)
 if REDIS_URL:
-    CACHES = {
-        "default": {
-            "BACKEND": "django.core.cache.backends.redis.RedisCache",
-            "LOCATION": REDIS_URL,
-            "KEY_PREFIX": "wp",
-        }
-    }
-    CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels.layers.RedisChannelLayer",
-            "CONFIG": {"hosts": [REDIS_URL]},
-        }
-    }
-else:
-    CACHES = {
-        "default": {
-            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-            "LOCATION": "wp-cache",
-        }
-    }
-    CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels.layers.InMemoryChannelLayer",
-        }
-    }
+    _channel_deps = channel_layer_dependencies()
+    _missing = [name for name, ok in _channel_deps.items() if not ok]
+    if _missing:
+        # 不在此处回退到 InMemory：静默降级会让多 worker 广播看似正常、实际丢消息。
+        logger.warning(
+            "REDIS_URL is set but channel-layer dependencies are missing: %s. "
+            "Install them (pip install 'channels_redis>=4.3,<5.0' 'redis>=5.0'); "
+            "Redis-backed WebSocket connections will fail until then.",
+            ", ".join(_missing),
+        )
 
 # WebSocket 路由（config.asgi 的 ProtocolTypeRouter 使用 realtime.routing）
 WS_URL_PATTERN = r"^ws/(?P<app_id>\d+)/$"

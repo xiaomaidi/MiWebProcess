@@ -19,6 +19,15 @@ from appcore.modules import require_module
 from core.permissions import is_platform_admin
 from pages.block_publish import auto_publish_referenced_blocks, empty_block_report
 from pages.models import Asset, Page, PageVersion
+from pages.schema_ops import (
+    SchemaOpValidationError,
+    append_operations,
+    broadcast_operations,
+    fetch_operations,
+    latest_seq,
+    operations_to_dict,
+    parse_cursor,
+)
 from pages.schema_sync import compute_schema_hash, raise_revision_floor
 from pages.serializers import AssetSerializer, PageSerializer, PageVersionSerializer
 from pages.services import default_page_schema, publish_page, save_draft
@@ -216,6 +225,66 @@ def page_schema(request, pk):
             "schema_hash": schema_hash,
             "schema_updated_by": updated_by,
         }
+    )
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def page_schema_ops(request, pk):
+    """GET/POST /api/pages/{id}/schema/ops/
+
+    GET（viewer）：
+        ``?after=<seq>&limit=<n>`` → ``{page_id, after, seq, ops, has_more}``；
+        ``seq`` 是当前页面最新操作序号，``ops`` 按 seq 升序，最多 ``limit``
+        （默认 200，最大 500）。
+
+    POST（editor）：
+        ``{client_id, base_revision?, ops: [SchemaOp, ...]}`` → 201
+        ``{page_id, seqs, last_seq, ops}``。任一操作非法则整批 400 且不落库。
+    """
+    page = _page_or_404(pk)
+    if request.method == "GET":
+        _check_page_access(request, page, "viewer")
+        try:
+            after, limit = parse_cursor(
+                request.query_params.get("after"), request.query_params.get("limit")
+            )
+        except SchemaOpValidationError as exc:
+            raise ValidationError({"detail": str(exc), "field": exc.field})
+        rows, has_more = fetch_operations(page.id, after=after, limit=limit)
+        return Response(
+            {
+                "page_id": page.id,
+                "after": after,
+                "seq": latest_seq(page.id),
+                "ops": operations_to_dict(rows),
+                "has_more": has_more,
+            }
+        )
+
+    _check_page_access(request, page, "editor")
+    if not isinstance(request.data, dict):
+        raise ValidationError({"detail": "请求体必须是对象"})
+    try:
+        rows = append_operations(
+            page.id,
+            client_id=request.data.get("client_id"),
+            ops=request.data.get("ops"),
+            base_revision=request.data.get("base_revision"),
+            user=request.user,
+        )
+    except SchemaOpValidationError as exc:
+        raise ValidationError({"detail": str(exc), "field": exc.field})
+    payload = operations_to_dict(rows)
+    broadcast_operations(page.id, rows, sender=request.user.username)
+    return Response(
+        {
+            "page_id": page.id,
+            "seqs": [int(row.seq) for row in rows],
+            "last_seq": int(rows[-1].seq),
+            "ops": payload,
+        },
+        status=status.HTTP_201_CREATED,
     )
 
 

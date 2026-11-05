@@ -58,7 +58,13 @@
       </div>
     </el-scrollbar>
 
-    <el-dialog v-model="versionsOpen" :title="`区块版本 · ${activeBlock?.name || ''}`" width="760px" append-to-body>
+    <el-dialog
+      v-model="versionsOpen"
+      class="wp-block-version-dialog"
+      :title="`区块版本 · ${activeBlock?.name || ''}`"
+      width="min(980px, 94vw)"
+      append-to-body
+    >
       <div class="wp-block-version-actions">
         <el-button size="small" type="primary" plain :loading="versionSaving" @click="createVersion">保存当前版本</el-button>
         <span class="wp-block-lib-hint">回滚只恢复草稿，不会自动重发已发布页面。</span>
@@ -72,14 +78,17 @@
       </el-table>
       <el-empty v-if="!versions.length" description="暂无版本记录" :image-size="44" />
       <div v-if="versions.length > 1" class="wp-block-diff-tools">
-        <span>版本对比</span>
-        <el-select v-model="diffFrom" size="small" style="width:100px">
-          <el-option v-for="v in versions" :key="`f-${v.version}`" :label="`v${v.version}`" :value="v.version" />
-        </el-select>
-        <span>→</span>
-        <el-select v-model="diffTo" size="small" style="width:100px">
-          <el-option v-for="v in versions" :key="`t-${v.version}`" :label="`v${v.version}`" :value="v.version" />
-        </el-select>
+        <div class="wp-block-diff-picker">
+          <span>版本对比</span>
+          <el-select v-model="diffFrom" size="small" style="width:100px">
+            <el-option v-for="v in versions" :key="`f-${v.version}`" :label="`v${v.version}`" :value="v.version" />
+          </el-select>
+          <span>→</span>
+          <el-select v-model="diffTo" size="small" style="width:100px">
+            <el-option v-for="v in versions" :key="`t-${v.version}`" :label="`v${v.version}`" :value="v.version" />
+          </el-select>
+          <span class="wp-block-lib-hint">结构 / 视觉 / 列表三种视图</span>
+        </div>
         <BlockVersionDiff v-if="activeBlock && diffFrom && diffTo" :block-id="activeBlock.id" :from="diffFrom" :to="diffTo" />
       </div>
     </el-dialog>
@@ -281,9 +290,10 @@ async function openVersions(block: BlockSummary) {
   activeBlock.value = block;
   versionsOpen.value = true;
   versions.value = [];
+  diffFrom.value = 0;
+  diffTo.value = 0;
   try {
-    const data = await api.get<any>(`/blocks/${block.id}/versions/?size=100`);
-    versions.value = data.results || data || [];
+    await loadVersions();
   } catch (e: any) { ElMessage.error(e?.message || "鍔犺浇鐗堟湰澶辫触"); }
 }
 async function loadVersions() {
@@ -425,5 +435,32 @@ watch(() => props.appId, () => void load());
   color: var(--el-text-color-secondary, #909399);
   line-height: 1.6;
   padding-left: 72px;
+}
+.wp-block-version-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.wp-block-diff-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+.wp-block-diff-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--el-text-color-secondary, #909399);
+  font-size: 12px;
+}
+</style>
+
+<style>
+/* 版本弹窗内容可能超过视口：只约束弹窗 body，避免整页滚动。 */
+.wp-block-version-dialog .el-dialog__body {
+  max-height: 76vh;
+  overflow-y: auto;
 }
 </style>

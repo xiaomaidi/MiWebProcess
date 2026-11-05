@@ -76,6 +76,73 @@ class PageVersion(models.Model):
         return f"{self.page_id} v{self.version}"
 
 
+class PageSchemaOperationQuerySet(models.QuerySet):
+    """操作日志只允许追加：禁止 ORM 批量更新 / 删除。"""
+
+    def update(self, **kwargs):
+        raise RuntimeError("PageSchemaOperation 是只追加日志，禁止更新")
+
+    def delete(self):
+        raise RuntimeError("PageSchemaOperation 是只追加日志，禁止删除")
+
+
+class PageSchemaOperation(models.Model):
+    """设计器 schema 操作日志（append-only，按 page + seq 单调排序）。
+
+    每条记录是客户端生成、服务端校验后落库的节点级 CRDT 操作。``seq`` 由
+    服务端在页面行锁内分配，保证同一页面内严格递增且唯一；``op`` 保存操作
+    本身（``node.upsert`` / ``node.delete`` / ``schema.meta``），包含 Lamport
+    clock。日志用于断线重放与审计，页面 ``Page.schema`` 仍是整页草稿快照。
+    """
+
+    page = models.ForeignKey(
+        Page, on_delete=models.CASCADE, related_name="schema_operations"
+    )
+    seq = models.PositiveIntegerField()
+    client_id = models.CharField(max_length=128)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        help_text="提交该操作的用户",
+    )
+    base_revision = models.PositiveIntegerField(
+        default=0, help_text="客户端生成操作时基于的 Page.schema_revision"
+    )
+    op = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = PageSchemaOperationQuerySet.as_manager()
+
+    class Meta:
+        db_table = "wp_page_schema_operations"
+        ordering = ("page_id", "seq")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("page", "seq"), name="uniq_page_schema_op_seq"
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=("page", "created_at"), name="wp_page_schema_op_created_idx"
+            )
+        ]
+
+    def save(self, *args, **kwargs):
+        # 更新已有行会破坏 seq 的不可变语义；只允许首次插入。
+        if self.pk is not None:
+            raise RuntimeError("PageSchemaOperation 是只追加日志，禁止更新")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise RuntimeError("PageSchemaOperation 是只追加日志，禁止删除")
+
+    def __str__(self):
+        return f"page={self.page_id} seq={self.seq} {self.op.get('kind', '')}"
+
+
 class PageBlock(models.Model):
     """可复用页面区块（共享布局的基础单元）。
 

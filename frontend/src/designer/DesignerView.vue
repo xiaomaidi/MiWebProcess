@@ -185,14 +185,24 @@ import { connectDesignerCollab, disconnectDesignerCollab, sendCollabCursor, send
 import {
   connect as connectSchemaSync,
   dispose as disposeSchemaSync,
-  onRemote as onRemoteSchema,
-  sendSchema,
   markPersisted,
   persistedRevision,
-  classifyRemoteSchema,
-  withRemoteApply,
-  applyingRemote,
 } from "./schema-sync";
+import {
+  connect as connectSchemaOps,
+  dispose as disposeSchemaOps,
+  onOps,
+  sendOps,
+  diffSchemas,
+  recordOps,
+  mergeRemoteOps,
+  withRemoteApply as withOpsRemoteApply,
+  applyingRemote,
+  getClock,
+  syncClockFromSchema,
+  setOplogSeq,
+  lastSeq as opsLastSeq,
+} from "./schema-ops";
 import { connect as connectDesignerLocks, disconnect as disconnectDesignerLocks } from "./lock-session";
 import BlockLibrary from "./components/BlockLibrary.vue";
 import OutlinePanel from "./components/OutlinePanel.vue";
@@ -612,31 +622,42 @@ function onHeaderCommand(command: string) {
   else if (command === "record") recorderOpen.value = true;
 }
 
-let stopRemoteSchema: (() => void) | null = null;
-let lastRemoteConflictAt = 0;
+let stopSchemaOps: (() => void) | null = null;
+let lastOpsSchema: PageSchema | null = null;
 
-function onRemoteSchemaChange(remote: any) {
-  if (!schema.schema) return;
-  const decision = classifyRemoteSchema({
-    localSchema: schema.schema,
-    remoteSchema: remote.schema,
-    dirty: schema.dirty,
+function cloneSchemaForOps(value: PageSchema): PageSchema {
+  return JSON.parse(JSON.stringify(value)) as PageSchema;
+}
+
+function onRemoteOps(event: any) {
+  if (!schema.schema || !event?.ops?.length) return;
+  for (const record of event.ops) {
+    try { getClock().observe(record.op.clock); } catch { /* ignore malformed clocks */ }
+  }
+  const ops = event.ops.map((record: any) => record.op);
+  const merged = mergeRemoteOps(schema.schema, ops, getClock());
+  if (!merged.applied.length) return;
+  withOpsRemoteApply(() => {
+    schema.schema = merged.schema;
   });
-  if (decision === "apply") {
-    withRemoteApply(() => schema.setSchema(remote.schema, pageId, appId));
-    return;
-  }
-  if (decision === "conflict" && Date.now() - lastRemoteConflictAt > 5000) {
-    lastRemoteConflictAt = Date.now();
-    ElMessage.warning("协作者有新的未保存修改；当前本地也有改动，保存时会进行冲突检查");
-  }
+  setOplogSeq(schema.schema, Math.max(Number(event.seq) || 0, opsLastSeq.value));
+  schema.dirty = true;
+  lastOpsSchema = cloneSchemaForOps(schema.schema);
 }
 
 watch(
   () => schema.schema,
   (value) => {
     if (!value || applyingRemote.value) return;
-    sendSchema(value, persistedRevision.value);
+    if (!lastOpsSchema) {
+      lastOpsSchema = cloneSchemaForOps(value);
+      return;
+    }
+    const ops = diffSchemas(lastOpsSchema, value, getClock());
+    if (!ops.length) return;
+    recordOps(value, ops);
+    sendOps(ops, persistedRevision.value || undefined);
+    lastOpsSchema = cloneSchemaForOps(value);
   },
   { deep: true }
 );
@@ -688,7 +709,9 @@ onMounted(async () => {
   connectDesignerLocks(pageId);
   await loadAll();
   connectSchemaSync(pageId);
-  stopRemoteSchema = onRemoteSchema(onRemoteSchemaChange);
+  stopSchemaOps = onOps(onRemoteOps);
+  connectSchemaOps(pageId, "", schema.schema || undefined);
+  syncClockFromSchema(getClock(), schema.schema);
   await checkLocalDraft();
   startAutosave();
 });
@@ -703,8 +726,9 @@ function onBeforeUnload(e: BeforeUnloadEvent) {
 }
 window.addEventListener("beforeunload", onBeforeUnload);
 onBeforeUnmount(() => {
-  stopRemoteSchema?.();
-  stopRemoteSchema = null;
+  stopSchemaOps?.();
+  stopSchemaOps = null;
+  disposeSchemaOps();
   disposeSchemaSync();
   disconnectDesignerCollab();
   disconnectDesignerLocks();

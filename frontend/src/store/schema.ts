@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import type { ComponentStateName, ComponentVariant, PageSchema, SchemaNode } from "@/types";
+import type { ComponentStateName, ComponentVariant, DataBinding, PageSchema, SchemaNode } from "@/types";
 import { useComponentStore } from "./component";
 import { deepClone, uid } from "@/utils";
 
@@ -740,7 +740,7 @@ export const useSchemaStore = defineStore("schema", {
       const entry = { ...(n.states[state] || {}) };
       const props = { ...(entry.props || {}) };
       if (value === undefined) delete props[key];
-      else props[key] = value;
+      else props[key] = deepClone(value);
       if (Object.keys(props).length) entry.props = props;
       else delete entry.props;
       if (entry.style || entry.props) n.states[state] = entry;
@@ -749,13 +749,13 @@ export const useSchemaStore = defineStore("schema", {
       this.dirty = true;
     },
 
-    /** 整体替换某个状态的 props（空对象 = 清除该项）。 */
+    /** 整体替换某个状态的 props（空对象 = 清除该项）。绑定对象按原样深拷贝保留。 */
     setStateProps(id: string, state: ComponentStateName, props: Record<string, any>) {
       const n = this.schema?.nodes[id];
       if (!n) return;
       n.states ||= {};
       const entry = { ...(n.states[state] || {}) };
-      if (props && Object.keys(props).length) entry.props = { ...props };
+      if (props && Object.keys(props).length) entry.props = deepClone(props);
       else delete entry.props;
       if (entry.style || entry.props) n.states[state] = entry;
       else delete n.states[state];
@@ -810,7 +810,7 @@ export const useSchemaStore = defineStore("schema", {
       this.dirty = true;
     },
 
-    /** 更新变体名称 / props / style（未传的字段保持不变）。 */
+    /** 更新变体名称 / props / style（未传的字段保持不变）；嵌套绑定对象按原样保留。 */
     updateVariant(nodeId: string, variantId: string, patch: Partial<ComponentVariant>) {
       const n = this.schema?.nodes[nodeId];
       const v = n?.variants?.find((item) => item.id === variantId);
@@ -820,14 +820,42 @@ export const useSchemaStore = defineStore("schema", {
         if (name) v.name = name;
       }
       if (patch.props !== undefined) {
-        if (patch.props && Object.keys(patch.props).length) v.props = { ...patch.props };
+        // 深拷贝：避免调用方后续修改草稿对象时串改变体 schema；绑定对象结构保持原样。
+        if (patch.props && Object.keys(patch.props).length) v.props = deepClone(patch.props);
         else delete v.props;
       }
       if (patch.style !== undefined) {
-        if (patch.style && Object.keys(patch.style).length) v.style = { ...patch.style };
+        if (patch.style && Object.keys(patch.style).length) v.style = deepClone(patch.style);
         else delete v.style;
       }
       this.dirty = true;
+    },
+
+    /** 设置 / 删除（value=undefined）变体中的单个 prop，其余 props 与嵌套绑定对象保持不变。 */
+    setVariantProp(nodeId: string, variantId: string, key: string, value: any) {
+      const n = this.schema?.nodes[nodeId];
+      const v = n?.variants?.find((item) => item.id === variantId);
+      const propKey = String(key ?? "").trim();
+      if (!n || !v || !propKey) return;
+      const props = { ...(v.props || {}) };
+      if (value === undefined) delete props[propKey];
+      else props[propKey] = deepClone(value);
+      if (Object.keys(props).length) v.props = props;
+      else delete v.props;
+      this.dirty = true;
+    },
+
+    /** 删除变体中的单个 prop（不存在时无操作）。 */
+    removeVariantProp(nodeId: string, variantId: string, key: string) {
+      this.setVariantProp(nodeId, variantId, key, undefined);
+    },
+
+    /**
+     * 设置 / 清除（binding=null）变体中的结构化数据绑定。
+     * 写入 `{ __binding__: DataBinding }`，与节点基础 props 的绑定结构完全一致。
+     */
+    setVariantBinding(nodeId: string, variantId: string, key: string, binding: DataBinding | null) {
+      this.setVariantProp(nodeId, variantId, key, binding ? { __binding__: deepClone(binding) } : undefined);
     },
 
     /** 激活变体（null = 回到基础形态）。 */

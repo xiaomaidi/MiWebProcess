@@ -65,7 +65,7 @@
                 @change="(next: string) => renameVariantStyleKey(v, key, next)"
               />
               <el-input
-                :model-value="String(value ?? '')"
+                :model-value="styleValueText(value)"
                 size="small"
                 class="wp-sv-v"
                 placeholder="值，如 #409eff"
@@ -80,19 +80,79 @@
             </div>
             <div class="wp-sv-sub">
               <span>props JSON</span>
-              <span class="wp-sv-sub-hint">覆盖基础属性</span>
+              <span class="wp-sv-sub-hint">静态值 / 绑定对象整体覆盖基础属性</span>
             </div>
             <el-input
               v-model="variantPropsJson[v.id]"
               type="textarea"
               :rows="3"
               class="wp-mono"
-              placeholder='例如 {"type":"primary","size":"large"}'
+              placeholder='例如 {"type":"primary","size":"large"} 或 {"text":{"__binding__":{"source":"variable","ref":"title"}}}'
             />
             <div class="wp-sv-actions">
               <el-button size="small" type="primary" plain @click="applyVariantProps(v)">应用 props</el-button>
               <span class="wp-sv-tip-inline">{{ overrideSummary(v) }}</span>
             </div>
+
+            <div class="wp-sv-sub">
+              <span>数据绑定 / 表达式</span>
+              <span class="wp-sv-sub-hint">选择属性 → 选择数据；绑定优先于基础 props</span>
+            </div>
+            <div v-if="variantBindingsOf(v).length" class="wp-sv-chips">
+              <el-tag
+                v-for="entry in variantBindingsOf(v)"
+                :key="entry.key"
+                size="small"
+                :type="entry.kind === 'binding' ? 'primary' : 'warning'"
+                effect="plain"
+                closable
+                class="wp-sv-chip"
+                :title="bindingChipTitle(entry)"
+                @click="editVariantBinding(v, entry)"
+                @close="clearVariantBinding(v, entry.key)"
+              >
+                <span class="wp-sv-chip-key">{{ entry.key }}</span>
+                <span class="wp-sv-chip-sep">·</span>
+                <span class="wp-sv-chip-val">{{ bindingChipText(entry) }}</span>
+              </el-tag>
+              <el-button size="small" text type="danger" @click="clearVariantBindings(v)">清除绑定</el-button>
+            </div>
+            <div v-else class="wp-sv-empty-inline">暂无绑定 / 表达式，该变体 props 使用静态值。</div>
+            <div class="wp-sv-kv-row">
+              <el-select
+                v-model="variantBindKey[v.id]"
+                size="small"
+                filterable
+                allow-create
+                default-first-option
+                clearable
+                class="wp-sv-bindkey"
+                placeholder="选择属性键"
+              >
+                <el-option v-for="p in propKeyOptions" :key="p.key" :label="p.label" :value="p.key" />
+              </el-select>
+              <el-button size="small" :loading="bindingRefsLoading" @click="openVariantPicker(v)">选择数据</el-button>
+              <el-button size="small" :disabled="!variantBindKey[v.id]" @click="fillBindingJson(v)">回填 JSON</el-button>
+            </div>
+            <el-input
+              v-model="variantBindJson[v.id]"
+              type="textarea"
+              :rows="2"
+              class="wp-mono"
+              placeholder='绑定 JSON，如 {"source":"variable","ref":"title","field":"name"}（也可粘贴 {"__binding__":…}）'
+            />
+            <div class="wp-sv-actions">
+              <el-button size="small" type="primary" plain @click="applyVariantBindingJson(v)">应用绑定 JSON</el-button>
+              <span class="wp-sv-tip-inline">支持 variable / datasource / model / form</span>
+            </div>
+            <el-alert
+              v-if="variantStyleWarn(v)"
+              :title="variantStyleWarn(v)"
+              type="warning"
+              :closable="false"
+              show-icon
+              class="wp-sv-warn"
+            />
           </el-collapse-item>
         </el-collapse>
       </div>
@@ -156,26 +216,117 @@
 
       <div class="wp-sv-tip">
         变体 / 状态仅覆盖节点自身；运行态 hover / active / focus 由真实交互触发，disabled 依据 disabled 属性。
+        变体 props 支持数据绑定与双花括号模板表达式，设计画布会用页面变量当前值预览，其余来源运行时取值；
+        变体 style 暂不支持绑定，请输入静态样式值。
       </div>
+
+      <BindingPicker
+        v-model="pickerOpen"
+        title="为变体属性选择数据"
+        :binding="pickerBinding"
+        :datasources="datasources"
+        :models="models"
+        :variables="schema.schema?.variables"
+        :target-label="pickerLabel"
+        @select="onVariantPick"
+      />
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
+import { api } from "@/api";
 import { useSchemaStore } from "@/store/schema";
-import type { ComponentStateName, ComponentVariant } from "@/types";
-import { COMPONENT_STATES, hasAnyState as nodeHasAnyState, overrideSummary } from "@/engine/state-variants";
+import { useComponentStore } from "@/store/component";
+import type { ComponentStateName, ComponentVariant, DataBinding, DataModelInfo, DataSourceDef } from "@/types";
+import { isBindingValue } from "@/engine/binding";
+import {
+  COMPONENT_STATES,
+  hasAnyState as nodeHasAnyState,
+  overrideSummary,
+  variantBindingEntries,
+  variantStyleBindingKeys,
+  type VariantBindingEntry,
+} from "@/engine/state-variants";
 import { clearStatePreview, previewedStateOf, setStatePreview } from "@/engine/state-preview";
-import { commit, parseJson, prettyJson } from "../util";
+import { bindingExpression, bindingSummary, type BindingPickPayload } from "../utils/bindingSources";
+import BindingPicker from "./BindingPicker.vue";
+import { asList, commit, parseJson, prettyJson } from "../util";
 
 const props = defineProps<{ nodeId: string }>();
 const schema = useSchemaStore();
+const components = useComponentStore();
 const node = computed(() => schema.node(props.nodeId));
+const meta = computed(() => (node.value ? components.meta(node.value.type) : undefined));
 const variants = computed<ComponentVariant[]>(() => node.value?.variants || []);
 const STATES = COMPONENT_STATES;
 const anyState = computed(() => nodeHasAnyState(node.value));
+
+// ---------- 绑定来源数据（数据源 / 数据模型；页面变量直接读 schema） ----------
+const datasources = ref<DataSourceDef[]>([]);
+const models = ref<DataModelInfo[]>([]);
+const bindingRefsLoading = ref(false);
+const bindingContext = computed(() => ({
+  datasources: datasources.value,
+  models: models.value,
+  variables: schema.schema?.variables,
+}));
+let bindingRefsAppId = 0;
+
+/** 懒加载数据源 / 模型列表，供 BindingPicker 选择来源（失败不阻塞变量/表单绑定）。 */
+async function ensureBindingRefs() {
+  const appId = schema.appId;
+  if (!appId || bindingRefsLoading.value || bindingRefsAppId === appId) return;
+  bindingRefsLoading.value = true;
+  try {
+    const [dsRes, modelRes] = await Promise.all([
+      api.get<unknown>(`/apps/${appId}/datasources/`, { silent: true }),
+      api.get<unknown>(`/apps/${appId}/models/`, { silent: true }),
+    ]);
+    datasources.value = asList<DataSourceDef>(dsRes);
+    models.value = asList<DataModelInfo>(modelRes);
+    bindingRefsAppId = appId;
+  } catch {
+    /* 静默失败：仍可绑定页面变量 / 表单，摘要显示「未找到」 */
+  } finally {
+    bindingRefsLoading.value = false;
+  }
+}
+onMounted(() => {
+  void ensureBindingRefs();
+});
+
+/** 属性键选项：组件声明的 props + 节点基础 props + 变体已有 props。 */
+const propKeyOptions = computed(() => {
+  const out: { key: string; label: string }[] = [];
+  const seen = new Set<string>();
+  const declared = meta.value?.props_schema?.properties ?? {};
+  for (const [key, ps] of Object.entries(declared)) {
+    if (ps?.["x-bindable"] === false) continue;
+    out.push({ key, label: ps?.title || key });
+    seen.add(key);
+  }
+  for (const key of Object.keys(node.value?.props || {})) {
+    if (seen.has(key)) continue;
+    out.push({ key, label: key });
+    seen.add(key);
+  }
+  for (const v of variants.value) {
+    for (const key of Object.keys(v.props || {})) {
+      if (seen.has(key)) continue;
+      out.push({ key, label: key });
+      seen.add(key);
+    }
+  }
+  return out;
+});
+
+function propLabel(key: string): string {
+  const declared = meta.value?.props_schema?.properties?.[key];
+  return declared?.title || key || "属性";
+}
 
 // ---------- 预览 ----------
 const previewState = computed<ComponentStateName | null>(() => previewedStateOf(props.nodeId));
@@ -207,6 +358,9 @@ const variantNewKey = reactive<Record<string, string>>({});
 const variantNewValue = reactive<Record<string, string>>({});
 const stateNewKey = reactive<Record<string, string>>({});
 const stateNewValue = reactive<Record<string, string>>({});
+// 变体绑定迷你编辑器草稿：选中的属性键 + 直接粘贴的绑定 JSON。
+const variantBindKey = reactive<Record<string, string>>({});
+const variantBindJson = reactive<Record<string, string>>({});
 
 function syncDrafts() {
   const alive = new Set<string>();
@@ -225,6 +379,12 @@ function syncDrafts() {
       delete variantNewKey[key];
       delete variantNewValue[key];
     }
+  }
+  for (const key of Object.keys(variantBindKey)) {
+    if (!alive.has(key)) delete variantBindKey[key];
+  }
+  for (const key of Object.keys(variantBindJson)) {
+    if (!alive.has(key)) delete variantBindJson[key];
   }
   for (const { key } of STATES) {
     const canonical = prettyJson(node.value?.states?.[key]?.props || {});
@@ -283,6 +443,8 @@ function removeVariant(v: ComponentVariant) {
   delete lastVariantPropsJson[v.id];
   delete variantNewKey[v.id];
   delete variantNewValue[v.id];
+  delete variantBindKey[v.id];
+  delete variantBindJson[v.id];
   openVariants.value = openVariants.value.filter((id) => id !== v.id);
   syncDrafts();
 }
@@ -300,6 +462,12 @@ function renameVariant(v: ComponentVariant, value: string) {
 // ---------- 变体 style ----------
 function variantStyleEntries(v: ComponentVariant): [string, any][] {
   return Object.entries(v.style || {});
+}
+
+/** style 值可能是绑定对象；用 JSON 文本展示，避免出现 [object Object]。 */
+function styleValueText(value: any): string {
+  if (value && typeof value === "object") return prettyJson(value);
+  return String(value ?? "");
 }
 
 function setVariantStyle(v: ComponentVariant, style: Record<string, any>) {
@@ -366,6 +534,138 @@ function applyVariantProps(v: ComponentVariant) {
   const canonical = prettyJson(parsed);
   variantPropsJson[v.id] = canonical;
   lastVariantPropsJson[v.id] = canonical;
+}
+
+// ---------- 变体数据绑定（props 值 → { __binding__ } 或 {{...}} 表达式） ----------
+const BINDING_SOURCES: DataBinding["source"][] = ["variable", "datasource", "model", "form"];
+const pickerOpen = ref(false);
+const pickerVariantId = ref("");
+const pickerKey = ref("");
+
+function bindingKeyFor(v: ComponentVariant): string {
+  return String(variantBindKey[v.id] || "").trim();
+}
+
+function variantBindingsOf(v: ComponentVariant): VariantBindingEntry[] {
+  return variantBindingEntries(v);
+}
+
+function bindingChipText(entry: VariantBindingEntry): string {
+  if (entry.kind === "expression") return String(entry.value ?? "");
+  return entry.binding ? bindingSummary(entry.binding, bindingContext.value) : "未选择来源";
+}
+
+function bindingChipTitle(entry: VariantBindingEntry): string {
+  if (entry.kind === "expression") return `表达式 ${String(entry.value ?? "")}`;
+  return entry.binding ? bindingExpression(entry.binding) : "";
+}
+
+/** 接受 `{source,ref,...}` 或 `{__binding__:{...}}` 两种 JSON 形态。 */
+function parseBindingJson(text: string): DataBinding | null {
+  const parsed = parseJson(text);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  const raw = ((parsed as Record<string, any>).__binding__ ?? parsed) as Record<string, any>;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const source = String(raw.source ?? "");
+  if (!BINDING_SOURCES.includes(source as DataBinding["source"])) return null;
+  const ref = typeof raw.ref === "string" ? raw.ref.trim() : "";
+  if (!ref) return null;
+  const binding: DataBinding = { source: source as DataBinding["source"], ref };
+  if (typeof raw.field === "string" && raw.field.trim()) binding.field = raw.field.trim();
+  if (typeof raw.transform === "string" && raw.transform.trim()) binding.transform = raw.transform;
+  if (typeof raw.loopVar === "string" && raw.loopVar.trim()) binding.loopVar = raw.loopVar;
+  if (raw.defaultValue !== undefined) binding.defaultValue = raw.defaultValue;
+  return binding;
+}
+
+function editVariantBinding(v: ComponentVariant, entry: VariantBindingEntry) {
+  variantBindKey[v.id] = entry.key;
+  variantBindJson[v.id] = entry.kind === "binding" && entry.binding ? prettyJson(entry.binding) : "";
+  openVariants.value = [...new Set([...openVariants.value, v.id])];
+}
+
+async function openVariantPicker(v: ComponentVariant) {
+  const key = bindingKeyFor(v);
+  if (!key) {
+    ElMessage.warning("请先选择要绑定的属性键");
+    return;
+  }
+  await ensureBindingRefs();
+  const existing = v.props?.[key];
+  if (isBindingValue(existing)) variantBindJson[v.id] = prettyJson(existing.__binding__);
+  pickerVariantId.value = v.id;
+  pickerKey.value = key;
+  pickerOpen.value = true;
+}
+
+const pickerBinding = computed<DataBinding | null>(() => {
+  const v = variants.value.find((item) => item.id === pickerVariantId.value);
+  const existing = pickerKey.value ? v?.props?.[pickerKey.value] : undefined;
+  if (isBindingValue(existing)) return existing.__binding__;
+  return parseBindingJson(variantBindJson[pickerVariantId.value] ?? "");
+});
+const pickerLabel = computed(() => propLabel(pickerKey.value));
+
+function onVariantPick(payload: BindingPickPayload) {
+  const variantId = pickerVariantId.value;
+  const key = pickerKey.value;
+  if (!variantId || !key) return;
+  if (payload.mode === "expression") {
+    commit(`变体表达式 ${key}`, () => schema.setVariantProp(props.nodeId, variantId, key, `{{${payload.expression}}}`));
+    variantBindJson[variantId] = "";
+    ElMessage.success(`已写入「${propLabel(key)}」的表达式`);
+  } else {
+    commit(`变体绑定 ${key}`, () => schema.setVariantBinding(props.nodeId, variantId, key, payload.binding));
+    variantBindJson[variantId] = prettyJson(payload.binding);
+    ElMessage.success(`已绑定「${propLabel(key)}」`);
+  }
+  variantBindKey[variantId] = "";
+}
+
+function applyVariantBindingJson(v: ComponentVariant) {
+  const key = bindingKeyFor(v);
+  if (!key) {
+    ElMessage.warning("请先选择要绑定的属性键");
+    return;
+  }
+  const binding = parseBindingJson(variantBindJson[v.id] ?? "");
+  if (!binding) {
+    ElMessage.error('绑定 JSON 需包含 source（variable / datasource / model / form）与 ref');
+    return;
+  }
+  commit(`变体绑定 ${key}`, () => schema.setVariantBinding(props.nodeId, v.id, key, binding));
+  variantBindJson[v.id] = prettyJson(binding);
+  ElMessage.success(`已绑定「${propLabel(key)}」`);
+}
+
+function fillBindingJson(v: ComponentVariant) {
+  const key = bindingKeyFor(v);
+  if (!key) {
+    ElMessage.warning("请先选择要绑定的属性键");
+    return;
+  }
+  const existing = v.props?.[key];
+  if (isBindingValue(existing)) variantBindJson[v.id] = prettyJson(existing.__binding__);
+  else ElMessage.info("该属性尚未绑定；请粘贴绑定 JSON 或点击「选择数据」");
+}
+
+function clearVariantBinding(v: ComponentVariant, key: string) {
+  commit(`清除变体绑定 ${key}`, () => schema.removeVariantProp(props.nodeId, v.id, key));
+  if (variantBindKey[v.id] === key) variantBindJson[v.id] = "";
+}
+
+function clearVariantBindings(v: ComponentVariant) {
+  const entries = variantBindingEntries(v);
+  if (!entries.length) return;
+  commit("清除变体绑定", () => {
+    for (const entry of entries) schema.removeVariantProp(props.nodeId, v.id, entry.key);
+  });
+  variantBindJson[v.id] = "";
+}
+
+function variantStyleWarn(v: ComponentVariant): string {
+  const keys = variantStyleBindingKeys(v.style);
+  return keys.length ? `样式暂不支持绑定：${keys.join("、")}。请改用 props 绑定或填写静态样式值。` : "";
 }
 
 // ---------- 状态操作 ----------
@@ -576,6 +876,45 @@ function clearAllStates() {
 .wp-sv-tip-inline {
   color: var(--el-text-color-secondary);
   font-size: 11px;
+}
+.wp-sv-chips {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.wp-sv-chip {
+  max-width: 100%;
+  cursor: pointer;
+}
+.wp-sv-chip-key {
+  font-weight: 600;
+}
+.wp-sv-chip-sep {
+  margin: 0 3px;
+  opacity: 0.5;
+}
+.wp-sv-chip-val {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  max-width: 210px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  display: inline-block;
+}
+.wp-sv-empty-inline {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+.wp-sv-bindkey {
+  flex: 1;
+  min-width: 0;
+}
+.wp-sv-warn {
+  margin-top: 6px;
 }
 .wp-mono :deep(textarea) {
   font-family: ui-monospace, Consolas, monospace;

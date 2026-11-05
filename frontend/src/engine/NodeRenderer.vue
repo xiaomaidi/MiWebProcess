@@ -146,14 +146,16 @@ import { COMPOSITE_CHILDREN, getElementComponent, getElementIcon, TEXT_SLOT_ELEM
 import { remoteComponentFor } from "./remote-component";
 import NodeLockOverlay from "@/designer/components/NodeLockOverlay.vue";
 import SandboxedComponent from "@/components/market/SandboxedComponent.vue";
-import { isBindingValue, resolveProps, resolveLoopItems, buildScope } from "./binding";
+import { resolveProps, resolveLoopItems, buildScope } from "./binding";
 import {
   COMPONENT_STATES,
   buildStateCss,
   hasStateOverride,
   mergeVariantProps,
   mergeVariantStyle,
+  resolveDesignProps,
   resolveInteractionState,
+  splitVariantStyleBindings,
   statePropsFor,
   stateStyleFor,
 } from "./state-variants";
@@ -214,8 +216,24 @@ const isSelected = computed(() => mode.value === "design" && !!design?.selectedI
 
 // ---------- 组件状态 / 变体 ----------
 // 变体：激活变体的 props/style 覆盖基础节点（设计态与运行态一致）。
+// 绑定对象在合并时保持原结构，随后统一交给 resolveProps 解析（变体绑定优先生效）。
 const variantProps = computed(() => mergeVariantProps(node.value));
-const variantStyle = computed(() => mergeVariantStyle(node.value));
+const variantStyleSplit = computed(() => splitVariantStyleBindings(mergeVariantStyle(node.value)));
+// 变体 style 暂不支持数据绑定：过滤掉绑定值，避免输出 [object Object] 等无效 CSS。
+const variantStyle = computed(() => variantStyleSplit.value.style);
+/** style 绑定不支持：每个节点+键只提示一次（设计器属性面板另有常驻提示）。 */
+const warnedStyleBindingKeys = new Set<string>();
+watch(
+  variantStyleSplit,
+  (split) => {
+    if (!split.bindingKeys.length) return;
+    const signature = `${node.value.id}:${split.bindingKeys.join(",")}`;
+    if (warnedStyleBindingKeys.has(signature)) return;
+    warnedStyleBindingKeys.add(signature);
+    console.warn(`[wp] 变体 style 暂不支持数据绑定，已忽略：${node.value.id} → ${split.bindingKeys.join(", ")}`);
+  },
+  { immediate: true }
+);
 // 设计态状态预览（由属性面板写入，不持久化）；运行态不使用。
 const previewStateName = computed<ComponentStateName | null>(() =>
   mode.value === "design" ? previewedStateOf(node.value.id) : null
@@ -460,15 +478,73 @@ function designPlaceholder(c: any, key: string): any {
   return "";
 }
 
+/**
+ * 设计态预览作用域：用页面变量当前值构造（只读）。
+ * 存在预览数据时，active 变体中的绑定在画布上显示真实值；否则回退占位值。
+ */
+const designPreviewScope = computed<RuntimeScope | null>(() => {
+  if (mode.value !== "design") return null;
+  const variables: Record<string, any> = {};
+  for (const [key, def] of Object.entries(schemaStore.schema?.variables || {})) {
+    const value = (def as { value?: unknown } | undefined)?.value;
+    if (value !== undefined) variables[key] = value;
+  }
+  if (!Object.keys(variables).length) return null;
+  const noop = () => {};
+  const scope: RuntimeScope = {
+    variables,
+    routeParams: {},
+    routePath: "",
+    setVariable: noop,
+    datasourceResults: {},
+    modelResults: {},
+    formValues: {},
+    formValidators: {},
+    loopVars: {},
+    async callDatasource() {
+      return undefined;
+    },
+    navigate: noop,
+    openModal: noop,
+    closeModal: noop,
+    modalNodeIds: new Set<string>(),
+    message: noop,
+    record: {
+      async list() {
+        return undefined;
+      },
+      async get() {
+        return undefined;
+      },
+      async create() {
+        return undefined;
+      },
+      async update() {
+        return undefined;
+      },
+      async remove() {
+        return undefined;
+      },
+    },
+  };
+  return scope;
+});
+
+/** 设计态 props：变体绑定 / 表达式优先用预览作用域解析，未命中再用占位值。 */
+const designResolvedProps = computed(() =>
+  resolveDesignProps(
+    mergedProps.value,
+    designPreviewScope.value,
+    (key) => designPlaceholder(comp.value, key),
+    resolveProps
+  )
+);
+
 const resolvedProps = computed(() => {
   if (isCanvas.value || !scope) {
     if (mode.value === "design") {
-      const out: Record<string, any> = {};
-      const c = comp.value;
-      for (const [k, v] of Object.entries(mergedProps.value)) {
-        out[k] = isBindingValue(v) ? designPlaceholder(c, k) : v;
-      }
-      return out;
+      // 设计态：有页面变量预览值时解析 active 变体绑定；否则输出类型安全的占位值。
+      return designResolvedProps.value.props;
     }
     return mergedProps.value;
   }

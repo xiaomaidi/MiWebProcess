@@ -4,7 +4,9 @@
 """
 from __future__ import annotations
 
+import asyncio
 import threading
+import time as clock
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
@@ -14,8 +16,9 @@ from channels.db import database_sync_to_async
 from channels.routing import URLRouter
 from channels.testing import WebsocketCommunicator
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.db import IntegrityError, connection, connections, transaction
-from django.test import TestCase, TransactionTestCase
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 from rest_framework_simplejwt.tokens import AccessToken
 
@@ -48,8 +51,10 @@ def lock_rows(page_id: int):
 
 class DesignerLockServiceTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.owner = User.objects.create_user(username="lock-owner", password="pw-12345678")
         self.editor = User.objects.create_user(username="lock-editor", password="pw-12345678")
+        self.third = User.objects.create_user(username="lock-third", password="pw-12345678")
         self.app = App.objects.create(name="Lock Demo", code="lock-demo", owner=self.owner)
         AppMember.objects.create(app=self.app, user=self.editor, role="editor")
         self.page = Page.objects.create(
@@ -57,6 +62,7 @@ class DesignerLockServiceTests(TestCase):
         )
         self.sid_a = sid()
         self.sid_b = sid()
+        self.sid_c = sid()
 
     # ---------------------------------------------------------------- 原子获取
     def test_acquire_is_exclusive_across_sessions(self):
@@ -252,6 +258,134 @@ class DesignerLockServiceTests(TestCase):
         self.assertEqual(plan["recoverable"], ["node-1"])
         self.assertEqual(plan["lost"], [])
 
+    # ---------------------------------------------------------------- 等待队列
+    def _hold(self, node: str = "queue-1") -> None:
+        lock_service.acquire_lock(self.page.id, self.owner, self.sid_a, node)
+
+    def test_queue_order_and_positions(self):
+        self._hold()
+        first = lock_service.enqueue_waiter(self.page.id, self.editor, self.sid_b, "queue-1", "r-a")
+        self.assertTrue(first["queued"])
+        self.assertEqual(first["position"], 1)
+        self.assertEqual(first["queueLength"], 1)
+
+        # 同一 user+session 重复申请幂等，保留队首位置。
+        again = lock_service.enqueue_waiter(self.page.id, self.editor, self.sid_b, "queue-1", "r-a2")
+        self.assertTrue(again["queued"])
+        self.assertEqual(again["position"], 1)
+        self.assertEqual(again["queueLength"], 1)
+
+        second = lock_service.enqueue_waiter(self.page.id, self.third, self.sid_c, "queue-1", "r-b")
+        self.assertTrue(second["queued"])
+        self.assertEqual(second["position"], 2)
+        self.assertEqual(second["queueLength"], 2)
+
+        snapshot = lock_service.queue_snapshot(self.page.id, "queue-1")
+        self.assertEqual([item["position"] for item in snapshot], [1, 2])
+        self.assertEqual([item["username"] for item in snapshot], ["lock-editor", "lock-third"])
+        self.assertEqual(lock_service.waiter_state(self.page.id, self.third.id, self.sid_c, "queue-1")["position"], 2)
+
+    def test_queue_max_length_rejects_extra_waiters(self):
+        fourth = User.objects.create_user(username="lock-fourth", password="pw-12345678")
+        self._hold()
+        with override_settings(DESIGNER_LOCK_QUEUE_MAX=2):
+            self.assertTrue(lock_service.enqueue_waiter(self.page.id, self.editor, self.sid_b, "queue-1")["queued"])
+            self.assertTrue(lock_service.enqueue_waiter(self.page.id, self.third, self.sid_c, "queue-1")["queued"])
+            full = lock_service.enqueue_waiter(self.page.id, fourth, sid(), "queue-1")
+            self.assertFalse(full["queued"])
+            self.assertEqual(full["reason"], "full")
+            self.assertEqual(full["queueLength"], 2)
+        self.assertEqual(len(lock_service.queue_snapshot(self.page.id, "queue-1")), 2)
+
+    def test_queue_waiter_timeout_is_pruned(self):
+        self._hold()
+        with override_settings(DESIGNER_LOCK_QUEUE_TIMEOUT_SECONDS=0.1):
+            queued = lock_service.enqueue_waiter(self.page.id, self.editor, self.sid_b, "queue-1")
+            self.assertTrue(queued["queued"])
+            self.assertEqual(queued["position"], 1)
+            clock.sleep(0.15)
+            expired = lock_service.take_expired_waiter(
+                self.page.id, self.editor.id, self.sid_b, "queue-1"
+            )
+        self.assertIsNotNone(expired)
+        self.assertEqual(expired["node"], "queue-1")
+        self.assertEqual(lock_service.queue_snapshot(self.page.id, "queue-1"), [])
+
+    def test_release_grants_lock_to_head_waiter(self):
+        self._hold()
+        lock_service.enqueue_waiter(self.page.id, self.editor, self.sid_b, "queue-1", "r-editor")
+        lock_service.enqueue_waiter(self.page.id, self.third, self.sid_c, "queue-1", "r-third")
+
+        result = lock_service.release_lock_and_grant_next(
+            self.page.id, self.owner.id, self.sid_a, "queue-1", self.owner.username
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result["released"]["userId"], self.owner.id)
+        self.assertEqual(result["granted"]["userId"], self.editor.id)
+        self.assertEqual(result["granted"]["sessionId"], str(self.sid_b))
+        self.assertEqual(result["waiter"]["requestId"], "r-editor")
+
+        row = DesignerLock.objects.get(page=self.page, node_id="queue-1")
+        self.assertEqual(row.user_id, self.editor.id)
+        self.assertEqual(row.session_id, self.sid_b)
+        self.assertEqual(len(lock_service.queue_snapshot(self.page.id, "queue-1")), 1)
+        self.assertEqual(
+            lock_service.waiter_state(self.page.id, self.third.id, self.sid_c, "queue-1")["position"],
+            1,
+        )
+
+    def test_cancel_waiter_shifts_following_positions(self):
+        self._hold()
+        lock_service.enqueue_waiter(self.page.id, self.editor, self.sid_b, "queue-1")
+        lock_service.enqueue_waiter(self.page.id, self.third, self.sid_c, "queue-1")
+
+        canceled = lock_service.cancel_waiter(self.page.id, self.editor.id, self.sid_b, "queue-1")
+        self.assertTrue(canceled["removed"])
+        self.assertEqual(canceled["position"], 1)
+        self.assertEqual(canceled["queueLength"], 1)
+        self.assertEqual(
+            lock_service.waiter_state(self.page.id, self.third.id, self.sid_c, "queue-1")["position"],
+            1,
+        )
+
+    def test_cancel_session_waiters_removes_all_nodes(self):
+        self._hold("queue-1")
+        self._hold("queue-2")
+        lock_service.enqueue_waiter(self.page.id, self.editor, self.sid_b, "queue-1")
+        lock_service.enqueue_waiter(self.page.id, self.editor, self.sid_b, "queue-2")
+
+        removed = lock_service.cancel_session_waiters(self.page.id, self.editor.id, self.sid_b)
+        self.assertEqual(set(removed), {"queue-1", "queue-2"})
+        self.assertEqual(lock_service.queue_snapshot(self.page.id, "queue-1"), [])
+        self.assertEqual(lock_service.queue_snapshot(self.page.id, "queue-2"), [])
+
+    def test_claim_head_lock_reclaims_expired_owner(self):
+        self._hold()
+        DesignerLock.objects.filter(page=self.page, node_id="queue-1").update(
+            expires_at=timezone.now() - timedelta(seconds=1)
+        )
+        lock_service.enqueue_waiter(self.page.id, self.editor, self.sid_b, "queue-1", "r-claim")
+        claim = lock_service.claim_head_lock(
+            self.page.id, self.editor, self.sid_b, "queue-1"
+        )
+        self.assertTrue(claim["granted"])
+        self.assertEqual(claim["requestId"], "r-claim")
+        row = DesignerLock.objects.get(page=self.page, node_id="queue-1")
+        self.assertEqual(row.user_id, self.editor.id)
+        self.assertEqual(lock_service.queue_snapshot(self.page.id, "queue-1"), [])
+
+    def test_non_head_cannot_claim_queued_lock(self):
+        self._hold()
+        lock_service.enqueue_waiter(self.page.id, self.editor, self.sid_b, "queue-1")
+        lock_service.enqueue_waiter(self.page.id, self.third, self.sid_c, "queue-1")
+        claim = lock_service.claim_head_lock(self.page.id, self.third, self.sid_c, "queue-1")
+        self.assertFalse(claim["granted"])
+        self.assertEqual(claim["reason"], "not-head")
+        self.assertEqual(claim["position"], 2)
+        self.assertEqual(
+            DesignerLock.objects.get(page=self.page, node_id="queue-1").user_id, self.owner.id
+        )
+
 
 class DesignerLockConcurrencyTests(TransactionTestCase):
     """真实并发：Postgres 行锁 + 唯一约束必须保证同一节点只有一个赢家。"""
@@ -295,18 +429,22 @@ class DesignerLockWebSocketTests(TransactionTestCase):
     reset_sequences = True
 
     def setUp(self):
+        cache.clear()
         self.owner = User.objects.create_user(username="ws-owner", password="pw-12345678")
         self.editor = User.objects.create_user(username="ws-editor", password="pw-12345678")
+        self.third = User.objects.create_user(username="ws-third", password="pw-12345678")
         self.viewer = User.objects.create_user(username="ws-viewer", password="pw-12345678")
         self.outsider = User.objects.create_user(username="ws-outsider", password="pw-12345678")
         self.app = App.objects.create(name="WS Lock Demo", code="ws-lock-demo", owner=self.owner)
         AppMember.objects.create(app=self.app, user=self.editor, role="editor")
+        AppMember.objects.create(app=self.app, user=self.third, role="editor")
         AppMember.objects.create(app=self.app, user=self.viewer, role="viewer")
         self.page = Page.objects.create(
             app=self.app, name="Home", path="home", type="page", status="draft",
         )
         self.sid_a = str(sid())
         self.sid_b = str(sid())
+        self.sid_c = str(sid())
 
     def _url(self, user, session, page_id=None) -> str:
         page_id = page_id or self.page.id
@@ -323,6 +461,23 @@ class DesignerLockWebSocketTests(TransactionTestCase):
         self.assertTrue(connected)
         snapshot = await communicator.receive_json_from(timeout=2)
         return communicator, snapshot
+
+    async def _receive_until(self, communicator, predicate, timeout: float = 3.0):
+        """跳过广播噪音，等待满足条件的消息（队列测试里消息顺序不固定）。"""
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        seen: list[dict] = []
+        while True:
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                self.fail(f"等待消息超时，已收到: {seen}")
+            try:
+                message = await communicator.receive_json_from(timeout=remaining)
+            except asyncio.TimeoutError:
+                self.fail(f"等待消息超时，已收到: {seen}")
+            seen.append(message)
+            if predicate(message):
+                return message
 
     def test_asgi_application_exposes_designer_lock_route(self):
         from config.asgi import application
@@ -387,9 +542,12 @@ class DesignerLockWebSocketTests(TransactionTestCase):
         self.assertEqual(data["owner_broadcast"]["userId"], self.owner.id)
         self.assertEqual(data["editor_broadcast"]["nodeId"], "node-1")
 
-        self.assertEqual(data["denied"]["type"], "lock-denied")
+        self.assertEqual(data["denied"]["type"], "lock-queued")
+        self.assertEqual(data["denied"]["nodeId"], "node-1")
+        self.assertEqual(data["denied"]["position"], 1)
         self.assertEqual(data["denied"]["owner"]["userId"], self.owner.id)
         self.assertEqual(data["denied"]["owner"]["sessionId"], self.sid_a)
+        self.assertTrue(data["denied"]["timeoutAt"])
         self.assertEqual(len(data["rows"]), 1)
         self.assertEqual(data["rows"][0][0], "node-1")
         self.assertEqual(data["rows"][0][1], self.owner.id)
@@ -556,6 +714,293 @@ class DesignerLockWebSocketTests(TransactionTestCase):
         # 旧连接断开不得释放新连接的锁。
         self.assertEqual(rows_after_old_disconnect[0][1], self.owner.id)
         self.assertEqual(rows_final, [])
+
+    # ---------------------------------------------------------------- 等待队列
+    def test_acquire_denied_enqueues_and_broadcasts_positions(self):
+        async def scenario():
+            owner_ws, _ = await self._connect(self.owner, self.sid_a)
+            editor_ws, _ = await self._connect(self.editor, self.sid_b)
+            third_ws, _ = await self._connect(self.third, self.sid_c)
+
+            await owner_ws.send_json_to({"type": "acquire", "nodeId": "node-q"})
+            await owner_ws.receive_json_from()  # lock-granted
+            await owner_ws.receive_json_from()  # broadcast
+
+            await editor_ws.send_json_to(
+                {"type": "acquire", "nodeId": "node-q", "requestId": "r-editor"}
+            )
+            editor_queued = await self._receive_until(
+                editor_ws, lambda m: m.get("type") == "lock-queued"
+            )
+            await third_ws.send_json_to(
+                {"type": "acquire", "nodeId": "node-q", "requestId": "r-third"}
+            )
+            third_queued = await self._receive_until(
+                third_ws, lambda m: m.get("type") == "lock-queued"
+            )
+            editor_position = await self._receive_until(
+                editor_ws,
+                lambda m: m.get("type") == "queue"
+                and m.get("nodeId") == "node-q"
+                and int(m.get("position") or 0) == 1,
+            )
+            third_position = await self._receive_until(
+                third_ws,
+                lambda m: m.get("type") == "queue"
+                and m.get("nodeId") == "node-q"
+                and int(m.get("position") or 0) == 2,
+            )
+            snapshot = await database_sync_to_async(lock_service.queue_snapshot)(
+                self.page.id, "node-q"
+            )
+            await owner_ws.disconnect()
+            await editor_ws.disconnect()
+            await third_ws.disconnect()
+            return editor_queued, third_queued, editor_position, third_position, snapshot
+
+        editor_queued, third_queued, editor_position, third_position, snapshot = async_to_sync(
+            scenario
+        )()
+        self.assertEqual(editor_queued["position"], 1)
+        self.assertEqual(editor_queued["owner"]["userId"], self.owner.id)
+        self.assertTrue(editor_queued["timeoutAt"])
+        self.assertEqual(third_queued["position"], 2)
+        self.assertTrue(editor_position["timeoutAt"])
+        self.assertEqual(third_position["position"], 2)
+        self.assertEqual([item["username"] for item in snapshot], ["ws-editor", "ws-third"])
+
+    def test_cancel_updates_next_waiter_position(self):
+        async def scenario():
+            owner_ws, _ = await self._connect(self.owner, self.sid_a)
+            editor_ws, _ = await self._connect(self.editor, self.sid_b)
+            third_ws, _ = await self._connect(self.third, self.sid_c)
+            await owner_ws.send_json_to({"type": "acquire", "nodeId": "node-q"})
+            await owner_ws.receive_json_from()
+            await owner_ws.receive_json_from()
+
+            await editor_ws.send_json_to({"type": "acquire", "nodeId": "node-q"})
+            await self._receive_until(editor_ws, lambda m: m.get("type") == "lock-queued")
+            await third_ws.send_json_to({"type": "acquire", "nodeId": "node-q"})
+            await self._receive_until(third_ws, lambda m: m.get("type") == "lock-queued")
+
+            await editor_ws.send_json_to({"type": "cancel", "nodeId": "node-q"})
+            await self._receive_until(editor_ws, lambda m: m.get("type") == "queue")
+            promoted = await self._receive_until(
+                third_ws,
+                lambda m: m.get("type") == "queue"
+                and m.get("nodeId") == "node-q"
+                and int(m.get("position") or 0) == 1,
+            )
+            snapshot = await database_sync_to_async(lock_service.queue_snapshot)(
+                self.page.id, "node-q"
+            )
+            await owner_ws.disconnect()
+            await editor_ws.disconnect()
+            await third_ws.disconnect()
+            return promoted, snapshot
+
+        promoted, snapshot = async_to_sync(scenario)()
+        self.assertEqual(promoted["position"], 1)
+        self.assertEqual(len(snapshot), 1)
+        self.assertEqual(snapshot[0]["userId"], self.third.id)
+        self.assertEqual(snapshot[0]["position"], 1)
+
+    @override_settings(DESIGNER_LOCK_QUEUE_POLL_SECONDS=5)
+    def test_new_acquire_cannot_jump_queued_waiter(self):
+        async def scenario():
+            owner_ws, _ = await self._connect(self.owner, self.sid_a)
+            editor_ws, _ = await self._connect(self.editor, self.sid_b)
+            third_ws, _ = await self._connect(self.third, self.sid_c)
+            await owner_ws.send_json_to({"type": "acquire", "nodeId": "node-q"})
+            await owner_ws.receive_json_from()
+            await owner_ws.receive_json_from()
+            await editor_ws.send_json_to({"type": "acquire", "nodeId": "node-q"})
+            await self._receive_until(editor_ws, lambda m: m.get("type") == "lock-queued")
+
+            # 锁过期但队首巡检尚未运行：新请求必须排到队尾，而不是直接抢锁。
+            await database_sync_to_async(
+                lambda: DesignerLock.objects.filter(
+                    page_id=self.page.id, node_id="node-q"
+                ).update(expires_at=timezone.now() - timedelta(seconds=1))
+            )()
+            await third_ws.send_json_to(
+                {"type": "acquire", "nodeId": "node-q", "requestId": "r-jump"}
+            )
+            third_queued = await self._receive_until(
+                third_ws, lambda m: m.get("type") == "lock-queued"
+            )
+            rows = await lock_rows(self.page.id)
+            snapshot = await database_sync_to_async(lock_service.queue_snapshot)(
+                self.page.id, "node-q"
+            )
+            await owner_ws.disconnect()
+            await editor_ws.disconnect()
+            await third_ws.disconnect()
+            return third_queued, rows, snapshot
+
+        third_queued, rows, snapshot = async_to_sync(scenario)()
+        self.assertEqual(third_queued["position"], 2)
+        self.assertEqual(third_queued["requestId"], "r-jump")
+        self.assertEqual(rows[0][1], self.owner.id)
+        self.assertEqual([item["username"] for item in snapshot], ["ws-editor", "ws-third"])
+
+    def test_release_grants_next_waiter_and_clears_queue(self):
+        async def scenario():
+            owner_ws, _ = await self._connect(self.owner, self.sid_a)
+            editor_ws, _ = await self._connect(self.editor, self.sid_b)
+            await owner_ws.send_json_to({"type": "acquire", "nodeId": "node-q"})
+            await owner_ws.receive_json_from()
+            await owner_ws.receive_json_from()
+
+            await editor_ws.send_json_to(
+                {"type": "acquire", "nodeId": "node-q", "requestId": "r-editor"}
+            )
+            await self._receive_until(editor_ws, lambda m: m.get("type") == "lock-queued")
+            await owner_ws.send_json_to({"type": "release", "nodeId": "node-q"})
+            granted = await self._receive_until(
+                editor_ws,
+                lambda m: m.get("type") == "lock-granted" and m.get("nodeId") == "node-q",
+            )
+            rows = await lock_rows(self.page.id)
+            snapshot = await database_sync_to_async(lock_service.queue_snapshot)(
+                self.page.id, "node-q"
+            )
+            await owner_ws.disconnect()
+            await editor_ws.disconnect()
+            return granted, rows, snapshot
+
+        granted, rows, snapshot = async_to_sync(scenario)()
+        self.assertTrue(granted["queued"])
+        self.assertEqual(granted["requestId"], "r-editor")
+        self.assertEqual(rows[0][1], self.editor.id)
+        self.assertEqual(rows[0][2], uuid.UUID(self.sid_b))
+        self.assertEqual(snapshot, [])
+
+    def test_disconnect_grants_next_waiter(self):
+        async def scenario():
+            owner_ws, _ = await self._connect(self.owner, self.sid_a)
+            editor_ws, _ = await self._connect(self.editor, self.sid_b)
+            await owner_ws.send_json_to({"type": "acquire", "nodeId": "node-q"})
+            await owner_ws.receive_json_from()
+            await owner_ws.receive_json_from()
+            await editor_ws.send_json_to(
+                {"type": "acquire", "nodeId": "node-q", "requestId": "r-late"}
+            )
+            await self._receive_until(editor_ws, lambda m: m.get("type") == "lock-queued")
+
+            await owner_ws.disconnect()
+            granted = await self._receive_until(
+                editor_ws,
+                lambda m: m.get("type") == "lock-granted" and m.get("nodeId") == "node-q",
+            )
+            rows = await lock_rows(self.page.id)
+            await editor_ws.disconnect()
+            return granted, rows
+
+        granted, rows = async_to_sync(scenario)()
+        self.assertTrue(granted["queued"])
+        self.assertEqual(granted["requestId"], "r-late")
+        self.assertEqual(rows[0][1], self.editor.id)
+
+    def test_disconnect_cancels_waiter_and_updates_positions(self):
+        async def scenario():
+            owner_ws, _ = await self._connect(self.owner, self.sid_a)
+            editor_ws, _ = await self._connect(self.editor, self.sid_b)
+            third_ws, _ = await self._connect(self.third, self.sid_c)
+            await owner_ws.send_json_to({"type": "acquire", "nodeId": "node-q"})
+            await owner_ws.receive_json_from()
+            await owner_ws.receive_json_from()
+            await editor_ws.send_json_to({"type": "acquire", "nodeId": "node-q"})
+            await self._receive_until(editor_ws, lambda m: m.get("type") == "lock-queued")
+            await third_ws.send_json_to({"type": "acquire", "nodeId": "node-q"})
+            await self._receive_until(third_ws, lambda m: m.get("type") == "lock-queued")
+
+            await editor_ws.disconnect()
+            promoted = await self._receive_until(
+                third_ws,
+                lambda m: m.get("type") == "queue"
+                and m.get("nodeId") == "node-q"
+                and int(m.get("position") or 0) == 1,
+            )
+            snapshot = await database_sync_to_async(lock_service.queue_snapshot)(
+                self.page.id, "node-q"
+            )
+            await owner_ws.disconnect()
+            await third_ws.disconnect()
+            return promoted, snapshot
+
+        promoted, snapshot = async_to_sync(scenario)()
+        self.assertEqual(promoted["position"], 1)
+        self.assertEqual(len(snapshot), 1)
+        self.assertEqual(snapshot[0]["userId"], self.third.id)
+
+    @override_settings(
+        DESIGNER_LOCK_QUEUE_TIMEOUT_SECONDS=0.3,
+        DESIGNER_LOCK_QUEUE_POLL_SECONDS=0.05,
+    )
+    def test_queue_timeout_notifies_and_removes_waiter(self):
+        async def scenario():
+            owner_ws, _ = await self._connect(self.owner, self.sid_a)
+            editor_ws, _ = await self._connect(self.editor, self.sid_b)
+            await owner_ws.send_json_to({"type": "acquire", "nodeId": "node-q"})
+            await owner_ws.receive_json_from()
+            await owner_ws.receive_json_from()
+            await editor_ws.send_json_to(
+                {"type": "acquire", "nodeId": "node-q", "requestId": "r-timeout"}
+            )
+            queued = await self._receive_until(
+                editor_ws, lambda m: m.get("type") == "lock-queued"
+            )
+            timed_out = await self._receive_until(
+                editor_ws,
+                lambda m: m.get("type") == "lock-timeout" and m.get("nodeId") == "node-q",
+                timeout=3.0,
+            )
+            snapshot = await database_sync_to_async(lock_service.queue_snapshot)(
+                self.page.id, "node-q"
+            )
+            rows = await lock_rows(self.page.id)
+            await owner_ws.disconnect()
+            await editor_ws.disconnect()
+            return queued, timed_out, snapshot, rows
+
+        queued, timed_out, snapshot, rows = async_to_sync(scenario)()
+        self.assertEqual(queued["requestId"], "r-timeout")
+        self.assertEqual(timed_out["requestId"], "r-timeout")
+        self.assertEqual(snapshot, [])
+        self.assertEqual(rows, [("node-q", self.owner.id, uuid.UUID(self.sid_a))])
+
+    @override_settings(DESIGNER_LOCK_QUEUE_POLL_SECONDS=0.05)
+    def test_expired_lock_is_claimed_by_head_waiter(self):
+        async def scenario():
+            owner_ws, _ = await self._connect(self.owner, self.sid_a)
+            editor_ws, _ = await self._connect(self.editor, self.sid_b)
+            await owner_ws.send_json_to({"type": "acquire", "nodeId": "node-q"})
+            await owner_ws.receive_json_from()
+            await owner_ws.receive_json_from()
+            await editor_ws.send_json_to(
+                {"type": "acquire", "nodeId": "node-q", "requestId": "r-expire"}
+            )
+            await self._receive_until(editor_ws, lambda m: m.get("type") == "lock-queued")
+            await database_sync_to_async(
+                lambda: DesignerLock.objects.filter(
+                    page_id=self.page.id, node_id="node-q"
+                ).update(expires_at=timezone.now() - timedelta(seconds=1))
+            )()
+            granted = await self._receive_until(
+                editor_ws,
+                lambda m: m.get("type") == "lock-granted" and m.get("nodeId") == "node-q",
+                timeout=3.0,
+            )
+            rows = await lock_rows(self.page.id)
+            await owner_ws.disconnect()
+            await editor_ws.disconnect()
+            return granted, rows
+
+        granted, rows = async_to_sync(scenario)()
+        self.assertTrue(granted["queued"])
+        self.assertEqual(granted["requestId"], "r-expire")
+        self.assertEqual(rows[0][1], self.editor.id)
 
     # ---------------------------------------------------------------- 校验 / 限流
     def test_invalid_node_id_rejected_over_websocket(self):
