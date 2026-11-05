@@ -111,7 +111,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { api } from "@/api";
 import { formatTime } from "@/utils";
@@ -119,6 +119,7 @@ import type { AppInfo } from "@/types";
 import AutoBuildDialog from "./AutoBuildDialog.vue";
 
 const router = useRouter();
+const route = useRoute();
 
 const loading = ref(false);
 const saving = ref(false);
@@ -276,7 +277,13 @@ function onAutoBuilt() {
   reload();
 }
 
-onMounted(load);
+onMounted(() => {
+  if (route.query.invalid_app || route.query.invalid_page || route.query.invalid_id) {
+    ElMessage.warning("链接中的应用或页面 ID 无效，已返回应用列表");
+    router.replace({ path: "/admin/apps" });
+  }
+  load();
+});
 </script>
 
 <style scoped>

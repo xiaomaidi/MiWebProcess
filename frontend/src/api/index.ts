@@ -34,6 +34,10 @@ async function request<T = any>(
   body?: unknown,
   opts: { raw?: boolean; silent?: boolean; form?: boolean } = {}
 ): Promise<T> {
+  // 防止坏路由/未加载对象把 NaN 拼进 URL，产生一串 404/500。
+  if (/(^|\/|=)NaN(\/|&|$)/.test(path)) {
+    throw new ApiError(400, "请求参数缺失或无效（ID 为 NaN）", { detail: "invalid_id" });
+  }
   const headers: Record<string, string> = {};
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;

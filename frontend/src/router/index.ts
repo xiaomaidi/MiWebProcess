@@ -232,6 +232,21 @@ export function createAppRouter(history?: RouterHistory) {
   router.beforeEach(async (to) => {
     if (typeof window === "undefined") return true;
     const auth = useAuthStore();
+    // 阻止 /admin/apps/NaN、/design/undefined/... 这类坏链接继续发请求。
+    const rawAppId = to.params.appId;
+    if (rawAppId !== undefined) {
+      const value = String(rawAppId);
+      if (!/^\d+$/.test(value) || Number(value) <= 0) {
+        return { path: "/admin/apps", query: { invalid_app: value } };
+      }
+    }
+    const rawPageId = to.params.pageId;
+    if (rawPageId !== undefined) {
+      const value = String(rawPageId);
+      if (!/^\d+$/.test(value) || Number(value) <= 0) {
+        return { path: "/admin/apps", query: { invalid_page: value } };
+      }
+    }
     const appCode = String(to.params.appCode || "");
     // 运行时页面按应用配置决定是否需要登录。
     if (to.path.startsWith("/run/") && appCode && !auth.isLoggedIn) {

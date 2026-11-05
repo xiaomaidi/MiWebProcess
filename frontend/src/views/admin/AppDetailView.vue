@@ -1437,11 +1437,13 @@ function onTabChange(name: string | number) {
 }
 
 function onAppMore(command: string) {
-  if (command === "ops") router.push(`/admin/apps/${appId}/ops`);
-  else if (command === "settings") router.push(`/admin/apps/${appId}/settings`);
-  else if (command === "auth") router.push(`/admin/apps/${appId}/auth`);
-  else if (command === "tokens") router.push(`/admin/apps/${appId}/design-tokens`);
-  else if (command === "workflow") router.push(`/workflow/design/${appId}`);
+  const id = Number(appId.value);
+  if (!Number.isFinite(id) || id <= 0) return;
+  if (command === "ops") router.push(`/admin/apps/${id}/ops`);
+  else if (command === "settings") router.push(`/admin/apps/${id}/settings`);
+  else if (command === "auth") router.push(`/admin/apps/${id}/auth`);
+  else if (command === "tokens") router.push(`/admin/apps/${id}/design-tokens`);
+  else if (command === "workflow") router.push(`/workflow/design/${id}`);
   else if (command === "edit") openAppEdit();
   else if (command === "export") exportTemplate();
   else if (command === "clone") cloneApp();
@@ -1449,8 +1451,15 @@ function onAppMore(command: string) {
   else if (command === "delete") deleteApp();
 }
 
-onMounted(() => {
-  loadApp();
+onMounted(async () => {
+  const id = Number(appId.value);
+  if (!Number.isFinite(id) || id <= 0) {
+    ElMessage.error("应用地址无效，正在返回应用列表");
+    await router.replace("/admin/apps");
+    return;
+  }
+  await loadApp();
+  if (!app.value) return;
   loadPages();
   loadModels();
   loadReleases();
