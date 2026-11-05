@@ -62,7 +62,7 @@ import {
   type SnapTargets,
 } from "../utils/layout";
 import { deepClone } from "@/utils";
-import { acquireDesignerLock, isRemoteLocked, releaseDesignerLock } from "../collab";
+import { acquire as acquireServerLock, isRemoteLocked, release as releaseServerLock } from "../lock-session";
 import { displayNodes, layoutFor, writeLayout } from "../responsive-layout";
 
 const schema = useSchemaStore();
@@ -353,7 +353,7 @@ function onNodePointerDown(e: PointerEvent) {
   const n = schema.node(hit.id);
   if (!n || !layoutFor(n, editor.device) || hit.id === schema.schema?.rootId) return;
   if (schema.isNodeLocked(hit.id) || isRemoteLocked(hit.id)) return; // 本地锁定或他人实时锁定
-  acquireDesignerLock(hit.id);
+  void acquireServerLock(hit.id);
 
   const resizing = targetEl?.closest?.(".wp-resize-handle") != null;
   const additive = e.ctrlKey || e.metaKey || e.shiftKey;
@@ -523,7 +523,7 @@ function onPointerUp() {
       }, 150);
     }
   }
-  if (dragState?.id) releaseDesignerLock(dragState.id);
+  if (dragState?.id) releaseServerLock(dragState.id);
   dragState = null;
   guides.value = { v: [], h: [] };
   feedback.value = null;

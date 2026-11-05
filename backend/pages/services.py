@@ -64,8 +64,21 @@ def snapshot_page(page: Page, user=None, changelog: str = "AI 修改前快照") 
     )
 
 
-def publish_page(page: Page, user, changelog: str = "") -> tuple[PageVersion, list, list]:
-    """严格校验并发布：创建 PageVersion 快照；失败时 errors 非空且不落库。"""
+def publish_page(
+    page: Page,
+    user,
+    changelog: str = "",
+    *,
+    auto_blocks: bool = True,
+    block_report: dict | None = None,
+) -> tuple[PageVersion, list, list]:
+    """严格校验并发布：创建 PageVersion 快照；失败时 errors 非空且不落库。
+
+    ``auto_blocks=True`` 时，发布成功后自动发布页面 schema 引用的可复用区块
+    （见 :mod:`pages.block_publish`）。区块发布失败只追加 warnings，不影响本页发布；
+    ``block_report`` 传入 dict 时会填充结构化的区块发布报告，供 API 返回。
+    区块自身的发布调用使用 ``auto_blocks=False``，避免递归重复触发。
+    """
     from components.services import get_component_registry
 
     registry = get_component_registry()
@@ -86,4 +99,23 @@ def publish_page(page: Page, user, changelog: str = "") -> tuple[PageVersion, li
     page.status = "published"
     page.version += 1
     page.save(update_fields=["current_version", "status", "version", "updated_at"])
+    if auto_blocks:
+        from pages.block_publish import auto_publish_referenced_blocks
+
+        try:
+            report = auto_publish_referenced_blocks(page, user, changelog)
+        except Exception as exc:  # noqa: BLE001 - 区块失败不能影响宿主页面发布
+            report = {
+                "published": [],
+                "skipped": [],
+                "missing": [],
+                "cycles": [],
+                "depth_limited": [],
+                "warnings": [f"自动发布引用区块失败: {type(exc).__name__}: {exc}"],
+                "info": [],
+            }
+        warnings = list(warnings or []) + list(report.get("warnings") or [])
+        if block_report is not None:
+            block_report.clear()
+            block_report.update(report)
     return pv, errors, warnings

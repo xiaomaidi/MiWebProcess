@@ -17,6 +17,7 @@ from rest_framework.response import Response
 
 from appcore.modules import require_module
 from core.permissions import is_platform_admin
+from pages.block_publish import auto_publish_referenced_blocks, empty_block_report
 from pages.models import Asset, Page, PageVersion
 from pages.serializers import AssetSerializer, PageSerializer, PageVersionSerializer
 from pages.services import default_page_schema, publish_page, save_draft
@@ -159,23 +160,49 @@ def page_schema(request, pk):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def page_publish(request, pk):
-    """POST /api/pages/{id}/publish/ {changelog?} → 严格校验 → PageVersion → 触发应用发布"""
+    """POST /api/pages/{id}/publish/ {changelog?} → 严格校验 → PageVersion → 自动发布引用区块 → 触发应用发布"""
     page = _page_or_404(pk)
     _check_page_access(request, page, "owner")
     changelog = str(request.data.get("changelog") or "")
     with transaction.atomic():
-        pv, errors, warnings = publish_page(page, request.user, changelog)
+        # 宿主页面在事务内发布；区块自动发布放到事务提交后，避免单个区块失败污染宿主事务。
+        pv, errors, warnings = publish_page(page, request.user, changelog, auto_blocks=False)
         if pv is None:
             raise ValidationError({"detail": errors or "schema 校验失败"})
         app = page.app
         if app.status != "archived":
             app.status = "published"
             app.save(update_fields=["status", "updated_at"])
+    # 自动发布引用区块（递归、限深、环安全）；失败只作为 warning 返回。
+    block_report = empty_block_report()
+    try:
+        block_report = auto_publish_referenced_blocks(page, request.user, changelog)
+        warnings = list(warnings or []) + list(block_report.get("warnings") or [])
+    except Exception as exc:  # noqa: BLE001 - 区块失败不能阻塞宿主页面发布
+        warnings = list(warnings or []) + [
+            f"自动发布引用区块失败: {type(exc).__name__}: {exc}"
+        ]
     # 触发（或更新）应用级发布：celery 不可用时同步内联执行
     from releases.services import schedule_release_for_app
 
     schedule_release_for_app(app, changelog=changelog, trigger="page_publish")
-    return Response({"page_version": PageVersionSerializer(pv).data, "warnings": warnings})
+    payload = {
+        "page_version": PageVersionSerializer(pv).data,
+        "warnings": warnings,
+        "blocks": block_report,
+    }
+    # 兼容/便利：同时提供顶层字段，前端或脚本可不必展开 blocks。
+    payload.update(
+        {
+            "published_blocks": block_report.get("published") or [],
+            "skipped_blocks": block_report.get("skipped") or [],
+            "missing_blocks": block_report.get("missing") or [],
+            "cycles": block_report.get("cycles") or [],
+            "depth_limited_blocks": block_report.get("depth_limited") or [],
+            "info": block_report.get("info") or [],
+        }
+    )
+    return Response(payload)
 
 
 @api_view(["GET"])

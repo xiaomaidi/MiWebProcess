@@ -9,10 +9,23 @@ from django.core.files.storage import default_storage
 from releases.models import Release, ReleaseTask
 
 
+def _release_pages(app):
+    """参与 release bundle 的页面。
+
+    fragment 是区块承载页，不进入运行时路由；旧数据中承载页可能被误标为
+    page/layout，因此同时按 ``__blocks__/`` 路径和 ``PageBlock`` 关联排除。
+    """
+    return (
+        app.pages.exclude(type="fragment")
+        .exclude(path__startswith="__blocks__/")
+        .exclude(blocks__isnull=False)
+    )
+
+
 def compile_bundle(app) -> dict:
     """把已发布页面的 PageVersion 快照汇总为 bundle。"""
     pages: dict = {}
-    for page in app.pages.exclude(type="fragment"):
+    for page in _release_pages(app):
         last = page.versions.order_by("-version").first()
         if last is None:
             continue
@@ -98,7 +111,7 @@ def run_compile_pipeline(release_id: int) -> bool:
         if not bundle["pages"]:
             raise RuntimeError("没有可发布的已发布页面")
         page_versions = {}
-        for page in release.app.pages.exclude(type="fragment"):
+        for page in _release_pages(release.app):
             last = page.versions.order_by("-version").first()
             if last is not None:
                 page_versions[str(page.id)] = last.id

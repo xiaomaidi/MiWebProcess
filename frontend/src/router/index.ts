@@ -68,6 +68,11 @@ const routes = [
           component: () => import("@/views/admin/AppsView.vue"),
         },
         {
+          path: "market",
+          name: "admin-market",
+          component: () => import("@/views/admin/MarketView.vue"),
+        },
+        {
           path: "enterprise",
           name: "admin-enterprise",
           component: () => import("@/views/admin/EnterpriseConsoleView.vue"),

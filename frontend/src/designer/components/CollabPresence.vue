@@ -16,9 +16,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useDesignerCollab } from "../collab";
+import { useDesignerLocks } from "../lock-session";
 
-const { peers, connected, remoteLocks } = useDesignerCollab();
-const lockCount = computed(() => Object.keys(remoteLocks.value).length);
+const { peers, connected } = useDesignerCollab();
+const { remoteLocks } = useDesignerLocks();
+const lockCount = computed(() => remoteLocks.value.length);
 </script>
 
 <style scoped>

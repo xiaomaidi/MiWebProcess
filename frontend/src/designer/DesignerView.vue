@@ -16,6 +16,7 @@
       <el-button size="small" type="primary" plain @click="aiOpen = true">✨ AI 生成</el-button>
       <CollabPresence />
       <el-button size="small" @click="debugOpen = true">调试</el-button>
+      <el-button size="small" @click="recorderOpen = true">录制</el-button>
     </header>
 
     <DesignerToolbar
@@ -83,6 +84,9 @@
     />
     <PublishDialog v-model="publishOpen" :page-id="pageId" @published="onPublished" />
     <VersionsDialog v-model="versionsOpen" :page-id="pageId" @rolled-back="onRolledBack" />
+    <el-drawer v-model="recorderOpen" title="操作录制与回放" size="460px">
+      <RecorderPanel />
+    </el-drawer>
     <el-drawer v-model="debugOpen" title="交互调试" size="460px">
       <DesignerDebuggerPanel />
     </el-drawer>
@@ -148,7 +152,9 @@ import MediaLibraryPanel from "./components/MediaLibraryPanel.vue";
 import CollabPresence from "./components/CollabPresence.vue";
 import CollabCursors from "./components/CollabCursors.vue";
 import DesignerDebuggerPanel from "./components/DesignerDebuggerPanel.vue";
+import RecorderPanel from "./components/RecorderPanel.vue";
 import { connectDesignerCollab, disconnectDesignerCollab, sendCollabCursor, sendCollabSelection } from "./collab";
+import { connect as connectDesignerLocks, disconnect as disconnectDesignerLocks } from "./lock-session";
 import BlockLibrary from "./components/BlockLibrary.vue";
 import OutlinePanel from "./components/OutlinePanel.vue";
 import DatasourcePanel from "./components/DatasourcePanel.vue";
@@ -179,6 +185,7 @@ const models = ref<DataModelInfo[]>([]);
 const leftTab = ref("components");
 const mobilePanel = ref<"" | "left" | "right">("");
 const debugOpen = ref(false);
+const recorderOpen = ref(false);
 const publishOpen = ref(false);
 const versionsOpen = ref(false);
 const aiOpen = ref(false);
@@ -556,6 +563,7 @@ watch(
 
 onMounted(async () => {
   connectDesignerCollab(appId, pageId);
+  connectDesignerLocks(pageId);
   await loadAll();
   await checkLocalDraft();
   startAutosave();
@@ -572,6 +580,7 @@ function onBeforeUnload(e: BeforeUnloadEvent) {
 window.addEventListener("beforeunload", onBeforeUnload);
 onBeforeUnmount(() => {
   disconnectDesignerCollab();
+  disconnectDesignerLocks();
   stopAutosave();
   saveLocalDraft(true);
   window.removeEventListener("beforeunload", onBeforeUnload);

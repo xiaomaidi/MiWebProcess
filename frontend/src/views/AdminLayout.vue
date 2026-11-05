@@ -59,6 +59,10 @@
             <el-icon><Files /></el-icon>
             <span>模板中心</span>
           </el-menu-item>
+          <el-menu-item index="/admin/market">
+            <el-icon><Shop /></el-icon>
+            <span>组件市场</span>
+          </el-menu-item>
           <el-menu-item index="/admin/template-market">
             <el-icon><Shop /></el-icon>
             <span>模板市场</span>
@@ -155,6 +159,7 @@ const pageTitle = computed(() => {
   if (path === "/admin/apps") return "应用管理";
   if (/^\/admin\/apps\/\d+/.test(path)) return "应用详情";
   if (path.startsWith("/admin/templates")) return "模板中心";
+  if (path.startsWith("/admin/market")) return "组件市场";
   if (path.startsWith("/admin/template-market")) return "模板市场";
   if (path.startsWith("/admin/components")) return "组件工坊";
   if (path.startsWith("/admin/agent")) return "高级 Agent";
@@ -173,6 +178,7 @@ const pageTitle = computed(() => {
 const activeMenu = computed(() => {
   const path = route.path;
   if (/^\/admin\/apps\/\d+/.test(path) || path.startsWith("/admin/models")) return "/admin/apps";
+  if (path.startsWith("/admin/market")) return "/admin/market";
   if (path.startsWith("/admin/template-market")) return "/admin/template-market";
   if (path.startsWith("/admin/templates")) return "/admin/templates";
   if (path.startsWith("/admin/components")) return "/admin/components";
