@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import type { PageSchema, SchemaNode } from "@/types";
+import type { ComponentStateName, ComponentVariant, PageSchema, SchemaNode } from "@/types";
 import { useComponentStore } from "./component";
 import { deepClone, uid } from "@/utils";
 
@@ -709,6 +709,138 @@ export const useSchemaStore = defineStore("schema", {
       const n = this.schema?.nodes[id];
       if (!n?.props) return;
       delete n.props[key];
+      this.dirty = true;
+    },
+
+    // ================= 组件状态（hover / active / focus / disabled） =================
+    /** 整体替换某个状态的 style（空对象 = 清除该项）；历史由调用方 commit 包装。 */
+    setStateStyle(id: string, state: ComponentStateName, style: Record<string, any>) {
+      const n = this.schema?.nodes[id];
+      if (!n) return;
+      const next: Record<string, any> = {};
+      for (const [key, value] of Object.entries(style || {})) {
+        if (value === undefined || value === null || value === "") continue;
+        next[key] = value;
+      }
+      n.states ||= {};
+      const entry = { ...(n.states[state] || {}) };
+      if (Object.keys(next).length) entry.style = next;
+      else delete entry.style;
+      if (entry.style || entry.props) n.states[state] = entry;
+      else delete n.states[state];
+      if (!Object.keys(n.states).length) delete n.states;
+      this.dirty = true;
+    },
+
+    /** 设置 / 删除（value=undefined）单个状态 prop。 */
+    setStateProp(id: string, state: ComponentStateName, key: string, value: any) {
+      const n = this.schema?.nodes[id];
+      if (!n) return;
+      n.states ||= {};
+      const entry = { ...(n.states[state] || {}) };
+      const props = { ...(entry.props || {}) };
+      if (value === undefined) delete props[key];
+      else props[key] = value;
+      if (Object.keys(props).length) entry.props = props;
+      else delete entry.props;
+      if (entry.style || entry.props) n.states[state] = entry;
+      else delete n.states[state];
+      if (!Object.keys(n.states).length) delete n.states;
+      this.dirty = true;
+    },
+
+    /** 整体替换某个状态的 props（空对象 = 清除该项）。 */
+    setStateProps(id: string, state: ComponentStateName, props: Record<string, any>) {
+      const n = this.schema?.nodes[id];
+      if (!n) return;
+      n.states ||= {};
+      const entry = { ...(n.states[state] || {}) };
+      if (props && Object.keys(props).length) entry.props = { ...props };
+      else delete entry.props;
+      if (entry.style || entry.props) n.states[state] = entry;
+      else delete n.states[state];
+      if (!Object.keys(n.states).length) delete n.states;
+      this.dirty = true;
+    },
+
+    /** 清除某个状态的全部覆盖。 */
+    clearState(id: string, state: ComponentStateName) {
+      const n = this.schema?.nodes[id];
+      if (!n?.states?.[state]) return;
+      delete n.states[state];
+      if (!Object.keys(n.states).length) delete n.states;
+      this.dirty = true;
+    },
+
+    // ================= 组件变体 =================
+    /** 新增变体；返回新变体 id。 */
+    addVariant(nodeId: string, name?: string): string {
+      const n = this.schema?.nodes[nodeId];
+      if (!n) return "";
+      n.variants ||= [];
+      const id = uid();
+      const label = String(name || "").trim() || `变体 ${n.variants.length + 1}`;
+      n.variants.push({ id, name: label });
+      this.dirty = true;
+      return id;
+    },
+
+    /** 复制变体（深拷贝 props/style）；返回新变体 id。 */
+    duplicateVariant(nodeId: string, variantId: string): string {
+      const n = this.schema?.nodes[nodeId];
+      const src = n?.variants?.find((v) => v.id === variantId);
+      if (!n || !src) return "";
+      n.variants ||= [];
+      const id = uid();
+      const clone: ComponentVariant = deepClone(src);
+      clone.id = id;
+      clone.name = `${src.name || "变体"} 副本`;
+      n.variants.push(clone);
+      this.dirty = true;
+      return id;
+    },
+
+    /** 删除变体；若删除的是激活变体则回到基础形态。 */
+    removeVariant(nodeId: string, variantId: string) {
+      const n = this.schema?.nodes[nodeId];
+      if (!n?.variants?.length) return;
+      n.variants = n.variants.filter((v) => v.id !== variantId);
+      if (!n.variants.length) delete n.variants;
+      if (n.activeVariant === variantId) delete n.activeVariant;
+      this.dirty = true;
+    },
+
+    /** 更新变体名称 / props / style（未传的字段保持不变）。 */
+    updateVariant(nodeId: string, variantId: string, patch: Partial<ComponentVariant>) {
+      const n = this.schema?.nodes[nodeId];
+      const v = n?.variants?.find((item) => item.id === variantId);
+      if (!n || !v) return;
+      if (patch.name !== undefined) {
+        const name = String(patch.name).trim();
+        if (name) v.name = name;
+      }
+      if (patch.props !== undefined) {
+        if (patch.props && Object.keys(patch.props).length) v.props = { ...patch.props };
+        else delete v.props;
+      }
+      if (patch.style !== undefined) {
+        if (patch.style && Object.keys(patch.style).length) v.style = { ...patch.style };
+        else delete v.style;
+      }
+      this.dirty = true;
+    },
+
+    /** 激活变体（null = 回到基础形态）。 */
+    activateVariant(nodeId: string, variantId: string | null) {
+      const n = this.schema?.nodes[nodeId];
+      if (!n) return;
+      if (!variantId) {
+        delete n.activeVariant;
+      } else if (n.variants?.some((v) => v.id === variantId)) {
+        n.activeVariant = variantId;
+      } else {
+        return;
+      }
       this.dirty = true;
     },
 

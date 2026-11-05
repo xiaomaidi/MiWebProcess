@@ -200,6 +200,9 @@
         <el-tab-pane label="样式" name="style">
           <StyleTab :node-id="selected.id" />
         </el-tab-pane>
+        <el-tab-pane label="状态" name="states">
+          <StatesVariantsTab :node-id="selected.id" />
+        </el-tab-pane>
         <el-tab-pane label="事件" name="events">
           <EventsTab :node-id="selected.id" :datasources="datasources" :models="models" />
         </el-tab-pane>
@@ -241,6 +244,7 @@ import type { DataModelInfo, DataSourceDef, PageInfo } from "@/types";
 import { commit } from "../util";
 import PropsTab from "./PropsTab.vue";
 import StyleTab from "./StyleTab.vue";
+import StatesVariantsTab from "./StatesVariantsTab.vue";
 import EventsTab from "./EventsTab.vue";
 import BindingTab from "./BindingTab.vue";
 import ConditionTab from "./ConditionTab.vue";

@@ -19,6 +19,7 @@ from appcore.modules import require_module
 from core.permissions import is_platform_admin
 from pages.block_publish import auto_publish_referenced_blocks, empty_block_report
 from pages.models import Asset, Page, PageVersion
+from pages.schema_sync import compute_schema_hash, raise_revision_floor
 from pages.serializers import AssetSerializer, PageSerializer, PageVersionSerializer
 from pages.services import default_page_schema, publish_page, save_draft
 from wp_utils import broadcast_draft_saved, get_app, paginate_items, require_app_role
@@ -123,38 +124,99 @@ def page_detail(request, pk):
     return Response(PageSerializer(page).data)
 
 
+def _page_schema_conflict(page: Page) -> dict:
+    """保存冲突响应体：返回当前持久化版本，供前端选择“重新加载 / 覆盖保存”。"""
+    schema = page.schema or {}
+    payload = {
+        "code": "schema_conflict",
+        "detail": "页面已被其他人保存，请刷新后再编辑或选择覆盖保存",
+        "current_revision": int(page.schema_revision or 1),
+        "current_hash": compute_schema_hash(schema),
+        "schema": schema,
+        # 兼容旧前端：旧契约用 current_version 判断冲突。
+        "current_version": int(page.version or 0),
+    }
+    if page.schema_updated_by_id:
+        payload["updated_by"] = page.schema_updated_by.username
+    if page.updated_at:
+        payload["updated_at"] = page.updated_at.isoformat()
+    return payload
+
+
 @api_view(["GET", "PUT"])
 @permission_classes([IsAuthenticated])
 def page_schema(request, pk):
-    """GET/PUT /api/pages/{id}/schema/"""
-    page = _page_or_404(pk)
+    """GET/PUT /api/pages/{id}/schema/
+
+    GET 返回 ``{schema, schema_revision, schema_hash}``；
+    PUT 接受可选 ``base_revision``：与当前持久化修订号不一致时返回 409
+    ``schema_conflict`` 且不落库。PUT 成功后 ``schema_revision`` +1。
+    """
     if request.method == "GET":
+        page = _page_or_404(pk)
         _check_page_access(request, page, "viewer")
-        return Response({"schema": page.schema or {}})
-    _check_page_access(request, page, "editor")
-    schema = request.data.get("schema")
-    if not isinstance(schema, dict):
-        raise ValidationError({"detail": "schema 必须是对象"})
-    base_version = request.data.get("base_version")
-    if base_version not in (None, ""):
-        try:
-            expected = int(base_version)
-        except (TypeError, ValueError):
-            raise ValidationError({"detail": "base_version 必须是整数"})
-        if expected != page.version:
-            return Response(
-                {
-                    "detail": "页面已被其他人保存，请刷新后再编辑",
-                    "current_version": page.version,
-                },
-                status=status.HTTP_409_CONFLICT,
-            )
-    page, errors, warnings = save_draft(page, schema, request.user)
-    if errors:
-        # 草稿宽松：结构性错误仍提示，但按契约仅警告不阻塞
-        warnings = list(errors) + list(warnings)
+        schema = page.schema or {}
+        return Response(
+            {
+                "schema": schema,
+                "schema_revision": int(page.schema_revision or 1),
+                "schema_hash": compute_schema_hash(schema),
+            }
+        )
+
+    # 加行锁，保证「比较 base_revision → 写入 → revision+1」的原子性。
+    with transaction.atomic():
+        page = get_object_or_404(
+            Page.objects.select_for_update().select_related("app"), id=pk
+        )
+        _check_page_access(request, page, "editor")
+        if not isinstance(request.data, dict):
+            raise ValidationError({"detail": "请求体必须是对象"})
+        schema = request.data.get("schema")
+        if not isinstance(schema, dict):
+            raise ValidationError({"detail": "schema 必须是对象"})
+        base_revision = request.data.get("base_revision")
+        if base_revision not in (None, ""):
+            if isinstance(base_revision, bool):
+                raise ValidationError({"detail": "base_revision 必须是整数"})
+            try:
+                expected = int(base_revision)
+            except (TypeError, ValueError):
+                raise ValidationError({"detail": "base_revision 必须是整数"})
+            if expected != int(page.schema_revision or 1):
+                return Response(_page_schema_conflict(page), status=status.HTTP_409_CONFLICT)
+        else:
+            # 兼容旧前端：未传 base_revision 时仍接受 base_version（page.version）。
+            base_version = request.data.get("base_version")
+            if base_version not in (None, ""):
+                if isinstance(base_version, bool):
+                    raise ValidationError({"detail": "base_version 必须是整数"})
+                try:
+                    expected_version = int(base_version)
+                except (TypeError, ValueError):
+                    raise ValidationError({"detail": "base_version 必须是整数"})
+                if expected_version != int(page.version or 0):
+                    return Response(
+                        _page_schema_conflict(page), status=status.HTTP_409_CONFLICT
+                    )
+        page, errors, warnings = save_draft(page, schema, request.user)
+        if errors:
+            # 草稿宽松：结构性错误仍提示，但按契约仅警告不阻塞
+            warnings = list(errors) + list(warnings)
+        revision = int(page.schema_revision or 1)
+        schema_hash = compute_schema_hash(page.schema or {})
+        updated_by = page.schema_updated_by.username if page.schema_updated_by_id else ""
+
     broadcast_draft_saved(page.app_id, page.id, page.version, request.user.username)
-    return Response({"page": PageSerializer(page).data, "warnings": warnings})
+    return Response(
+        {
+            "page": PageSerializer(page).data,
+            "warnings": warnings,
+            "schema_revision": revision,
+            "schema_hash": schema_hash,
+            "schema_updated_by": updated_by,
+        }
+    )
 
 
 @api_view(["POST"])
@@ -224,8 +286,22 @@ def page_version_rollback(request, pk, version):
     page.schema = pv.schema
     page.schema_version = pv.schema_version
     page.version += 1
+    page.schema_revision = int(page.schema_revision or 0) + 1
+    if request.user.is_authenticated:
+        page.schema_updated_by = request.user
     page.status = "draft"
-    page.save(update_fields=["schema", "schema_version", "version", "status", "updated_at"])
+    page.save(
+        update_fields=[
+            "schema",
+            "schema_version",
+            "version",
+            "schema_revision",
+            "schema_updated_by",
+            "status",
+            "updated_at",
+        ]
+    )
+    raise_revision_floor(page.id, page.schema_revision)
     broadcast_draft_saved(page.app_id, page.id, page.version, request.user.username)
     return Response({"page": PageSerializer(page).data})
 

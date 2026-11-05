@@ -5,6 +5,7 @@ import uuid
 
 from core.schemas import validate_page_schema
 from pages.models import Page, PageVersion
+from pages.schema_sync import raise_revision_floor
 
 
 def default_page_schema() -> dict:
@@ -46,7 +47,33 @@ def save_draft(page: Page, schema: dict, user=None) -> tuple[Page, list, list]:
     page.schema = schema or {}
     page.version += 1
     page.schema_version = _schema_version_of(page.schema)
-    page.save(update_fields=["schema", "version", "schema_version", "updated_at"])
+    # 持久化修订号：AI / 区块 / 人工保存共用，便于实时同步与保存冲突检测。
+    page.schema_revision = int(page.schema_revision or 0) + 1
+    if user is not None and getattr(user, "is_authenticated", False):
+        page.schema_updated_by = user
+    page.save(
+        update_fields=[
+            "schema",
+            "version",
+            "schema_version",
+            "schema_revision",
+            "schema_updated_by",
+            "updated_at",
+        ]
+    )
+    # 让实时通道的临时 revision 不低于刚保存的持久化 revision。
+    raise_revision_floor(page.id, page.schema_revision)
+    # 区块承载页面被设计器保存时自动补一个版本快照（无变化时跳过）。
+    if page.type == "fragment":
+        try:
+            from .block_services import create_block_version
+            from .models import PageBlock
+
+            block = PageBlock.objects.filter(page=page).first()
+            if block is not None:
+                create_block_version(block, user=user, changelog="设计器保存", force=False)
+        except Exception:
+            pass
     return page, errors, warnings
 
 

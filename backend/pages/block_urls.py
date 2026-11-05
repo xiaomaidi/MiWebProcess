@@ -13,6 +13,11 @@ urlpatterns = [
         name="block_version_list",
     ),
     path(
+        "api/blocks/<int:pk>/versions/diff/",
+        block_views.block_version_diff,
+        name="block_version_diff",
+    ),
+    path(
         "api/blocks/<int:pk>/versions/<int:version>/",
         block_views.block_version_detail,
         name="block_version_detail",

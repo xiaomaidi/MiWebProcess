@@ -445,3 +445,21 @@ def block_publish_market(request, pk: int):
         result,
         status=status.HTTP_201_CREATED if result["created"] else status.HTTP_200_OK,
     )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def block_version_diff(request, pk: int):
+    """GET /api/blocks/{id}/versions/diff/?from=1&to=2 → 结构化版本差异。"""
+    from .block_services import diff_block_versions
+
+    block = _block_or_404(pk)
+    require_app_role(request.user, block.app, "viewer")
+    try:
+        from_version = int(request.query_params.get("from"))
+        to_version = int(request.query_params.get("to"))
+    except (TypeError, ValueError):
+        raise ValidationError({"detail": "from/to 必须是版本号整数"})
+    if from_version <= 0 or to_version <= 0:
+        raise ValidationError({"detail": "from/to 必须是正整数"})
+    return Response(diff_block_versions(block, from_version, to_version))

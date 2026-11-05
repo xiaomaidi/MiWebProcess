@@ -159,12 +159,38 @@ export interface DataBinding {
 /** prop 值：普通字面量，或 { __binding__: DataBinding } */
 export type BoundValue = any;
 
+/** 组件交互状态名（与 CSS 伪类 / Element Plus 禁用类对应）。 */
+export type ComponentStateName = "hover" | "active" | "focus" | "disabled";
+
+/** 单个状态的覆盖：style 追加 CSS 声明，props 覆盖组件属性。 */
+export interface ComponentStateOverride {
+  style?: Record<string, any>;
+  props?: Record<string, any>;
+}
+
+/** 节点状态表：可只声明需要覆盖的状态。 */
+export type ComponentStates = Partial<Record<ComponentStateName, ComponentStateOverride>>;
+
+/** 组件变体：激活后以 props / style 覆盖节点基础形态。 */
+export interface ComponentVariant {
+  id: string;
+  name: string;
+  props?: Record<string, any>;
+  style?: Record<string, any>;
+}
+
 export interface SchemaNode {
   id: string;
   type: string; // 组件类型键；"wp-canvas" 为画布根
   componentVersion: string;
   props: Record<string, any>; // 值可为 BoundValue
   style?: Record<string, any>;
+  /** 交互状态覆盖：hover / active / focus / disabled。 */
+  states?: ComponentStates;
+  /** 组件变体列表（互斥；activeVariant 指向当前激活项）。 */
+  variants?: ComponentVariant[];
+  /** 当前激活变体 id；不填 / 未匹配时使用基础形态。 */
+  activeVariant?: string;
   /** 断点覆盖样式：xs/sm/md/lg/xl → CSS 属性对象（运行态生成 @media） */
   responsive?: Record<string, Record<string, any>>;
   /** 在指定断点隐藏节点：xs/sm/md/lg/xl */

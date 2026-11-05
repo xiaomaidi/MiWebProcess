@@ -81,6 +81,7 @@
       :class="{ 'wp-node-selected': isSelected, 'wp-node-free': hasLayout, 'wp-node-inline': isInlineWrapper }"
       :style="nodeStyle"
       :data-wp-node="node.id"
+      :data-state-preview="previewStateName || undefined"
       :draggable="canDrag"
       @dragstart.stop="onNodeDragStart"
       @click="onNodeClick"
@@ -137,7 +138,7 @@
 <script setup lang="ts">
 import { computed, defineComponent, h, inject, onMounted, onUnmounted, provide, reactive, ref, toRefs, watch } from "vue";
 import type { Component } from "vue";
-import type { ComponentMeta, RuntimeScope, SchemaNode } from "@/types";
+import type { ComponentMeta, ComponentStateName, RuntimeScope, SchemaNode } from "@/types";
 import { builtinComponents } from "@/builtin";
 import { useComponentStore } from "@/store/component";
 import { useSchemaStore } from "@/store/schema";
@@ -146,6 +147,17 @@ import { remoteComponentFor } from "./remote-component";
 import NodeLockOverlay from "@/designer/components/NodeLockOverlay.vue";
 import SandboxedComponent from "@/components/market/SandboxedComponent.vue";
 import { isBindingValue, resolveProps, resolveLoopItems, buildScope } from "./binding";
+import {
+  COMPONENT_STATES,
+  buildStateCss,
+  hasStateOverride,
+  mergeVariantProps,
+  mergeVariantStyle,
+  resolveInteractionState,
+  statePropsFor,
+  stateStyleFor,
+} from "./state-variants";
+import { previewedStateOf } from "./state-preview";
 import { evaluateExpression, interpolate } from "./expr";
 import { runSteps } from "./actions";
 import type { WpFormContext } from "@/builtin/components/form-context";
@@ -200,6 +212,56 @@ const isCanvas = computed(() => node.value.type === "wp-canvas");
 const hasLayout = computed(() => node.value.layout != null);
 const isSelected = computed(() => mode.value === "design" && !!design?.selectedIds?.includes(node.value.id));
 
+// ---------- 组件状态 / 变体 ----------
+// 变体：激活变体的 props/style 覆盖基础节点（设计态与运行态一致）。
+const variantProps = computed(() => mergeVariantProps(node.value));
+const variantStyle = computed(() => mergeVariantStyle(node.value));
+// 设计态状态预览（由属性面板写入，不持久化）；运行态不使用。
+const previewStateName = computed<ComponentStateName | null>(() =>
+  mode.value === "design" ? previewedStateOf(node.value.id) : null
+);
+const previewStateStyle = computed(() => stateStyleFor(node.value, previewStateName.value));
+
+// 运行态真实交互：hover / active / focus 由组件根元素事件驱动，disabled 取解析后的 props。
+const hovered = ref(false);
+const pressed = ref(false);
+const focused = ref(false);
+/** 未叠加状态覆盖的 props（用于 disabled 判定，避免与状态 props 形成环）。 */
+const resolvedBaseProps = computed<Record<string, any>>(() => {
+  if (isCanvas.value || !scope) return variantProps.value;
+  return resolveProps(variantProps.value, scope as any, loopExtra());
+});
+const runtimeStateName = computed<ComponentStateName | null>(() => {
+  if (mode.value !== "runtime") return null;
+  return resolveInteractionState(node.value, {
+    disabled: !!resolvedBaseProps.value.disabled,
+    hovered: hovered.value,
+    pressed: pressed.value,
+    focused: focused.value,
+  });
+});
+const activeStateName = computed<ComponentStateName | null>(() => previewStateName.value || runtimeStateName.value);
+// 运行态：激活状态的样式也内联应用（覆盖基础 inline style），CSS 规则作为兜底。
+const runtimeStateStyle = computed(() =>
+  mode.value === "runtime" ? stateStyleFor(node.value, runtimeStateName.value) : {}
+);
+const activeStateProps = computed<Record<string, any>>(() => statePropsFor(node.value, activeStateName.value));
+const resolvedStateProps = computed<Record<string, any>>(() => {
+  const raw = activeStateProps.value;
+  if (!raw || !Object.keys(raw).length) return {};
+  if (!scope) return raw;
+  return resolveProps(raw, scope as any, loopExtra());
+});
+const mergedProps = computed<Record<string, any>>(() => {
+  const base = variantProps.value;
+  const extra = activeStateProps.value;
+  return extra && Object.keys(extra).length ? { ...base, ...extra } : base;
+});
+/** 是否存在需要监听交互事件的状态覆盖（hover/active/focus 的 style 或 props）。 */
+const hasInteractiveStates = computed(() =>
+  COMPONENT_STATES.some(({ key }) => key !== "disabled" && hasStateOverride(node.value, key))
+);
+
 const canDrag = computed(
   () =>
     mode.value === "design" &&
@@ -225,6 +287,8 @@ const isInlineWrapper = computed(
     mode.value === "design" &&
     !node.value.layout &&
     !(node.value.style && Object.keys(node.value.style).length) &&
+    !(variantStyle.value && Object.keys(variantStyle.value).length) &&
+    !previewStateName.value &&
     !node.value.customCss &&
     !(node.value.responsive && Object.keys(node.value.responsive).length)
 );
@@ -250,7 +314,7 @@ function loopExtra(): Record<string, any> | undefined {
   const extra: Record<string, any> = {};
   if (loopItem.value !== undefined && loopItem.value !== null) extra[loopName.value || "item"] = loopItem.value;
   if (loopIndex.value !== undefined) {
-    const indexName = isRepeater.value ? String(node.value.props?.indexVar || "index") : "index";
+    const indexName = isRepeater.value ? String(variantProps.value.indexVar || "index") : "index";
     extra[indexName] = loopIndex.value;
     if (indexName !== "index") extra.index = loopIndex.value;
   }
@@ -259,7 +323,7 @@ function loopExtra(): Record<string, any> | undefined {
 
 const conditionPass = computed(() => {
   if (!isConditional.value) return true;
-  const when = node.value.props?.when;
+  const when = mergedProps.value?.when;
   if (!when) return true;
   if (mode.value !== "runtime" || !scope) return true;
   return !!evaluateExpression(String(when), buildScope(scope, loopExtra()));
@@ -281,7 +345,7 @@ const loopItems = computed(() => {
   return resolveLoopItems(node.value.dataBinding, scope as any, loopExtra());
 });
 
-const repeaterItemVar = computed(() => String(node.value.props?.itemVar || "item"));
+const repeaterItemVar = computed(() => String(variantProps.value.itemVar || "item"));
 const repeaterItems = computed<any[]>(() => {
   if (!isRepeater.value) return [];
   if (mode.value !== "runtime" || !scope) return [{}];
@@ -401,14 +465,16 @@ const resolvedProps = computed(() => {
     if (mode.value === "design") {
       const out: Record<string, any> = {};
       const c = comp.value;
-      for (const [k, v] of Object.entries(node.value.props || {})) {
+      for (const [k, v] of Object.entries(mergedProps.value)) {
         out[k] = isBindingValue(v) ? designPlaceholder(c, k) : v;
       }
       return out;
     }
-    return node.value.props || {};
+    return mergedProps.value;
   }
-  return resolveProps(node.value.props, scope as any, loopExtra());
+  const base = resolvedBaseProps.value;
+  const extra = resolvedStateProps.value;
+  return extra && Object.keys(extra).length ? { ...base, ...extra } : base;
 });
 
 const localModel = ref<any>(undefined);
@@ -585,6 +651,41 @@ const elementProps = computed<Record<string, any>>(() => {
     for (const k of ["padding", "background", "minHeight", "direction", "gap", "align", "justify", "wrap", "columns", "rowGap"]) delete out[k];
   }
 
+  // 设计态状态预览：同步到组件根元素，避免样式只落在 display:contents 包装层上。
+  if (mode.value === "design" && Object.keys(previewStateStyle.value).length) {
+    out.style = { ...(out.style || {}), ...previewStateStyle.value };
+  }
+
+  // 运行态：为 props 状态覆盖监听真实交互。事件在组件根元素上冒泡，
+  // 与 v-on="eventHandlers" 合并，不覆盖页面动作事件。
+  if (mode.value === "runtime" && hasInteractiveStates.value) {
+    out.onMouseenter = () => {
+      hovered.value = true;
+    };
+    out.onMouseleave = () => {
+      hovered.value = false;
+      pressed.value = false;
+    };
+    out.onMousedown = () => {
+      pressed.value = true;
+    };
+    out.onMouseup = () => {
+      pressed.value = false;
+    };
+    out.onTouchstart = () => {
+      pressed.value = true;
+    };
+    out.onTouchend = () => {
+      pressed.value = false;
+    };
+    out.onFocusin = () => {
+      focused.value = true;
+    };
+    out.onFocusout = () => {
+      focused.value = false;
+    };
+  }
+
   // 结构化组件没有外层 div，样式直接挂到组件根元素
   if (isWrapperless.value) out.style = { ...nodeStyle.value, ...(out.style || {}) };
   return out;
@@ -681,6 +782,11 @@ function applyNodeCss(): void {
     const cond = [cfg.min ? `(min-width:${cfg.min}px)` : "", cfg.max ? `(max-width:${cfg.max}px)` : ""].filter(Boolean).join(" and ");
     if (cond) chunks.push(`@media ${cond}{${selector}{display:none!important}}`);
   }
+  // 运行态：hover/active/focus/disabled 状态样式（设计态通过预览内联应用）。
+  if (mode.value === "runtime") {
+    const stateCss = buildStateCss(node.value);
+    if (stateCss) chunks.push(stateCss);
+  }
   if (!chunks.length) {
     cssEl?.remove();
     cssEl = null;
@@ -699,7 +805,11 @@ onUnmounted(() => {
   cssEl?.remove();
   cssEl = null;
 });
-watch(() => [node.value.customCss, node.value.responsive, node.value.hideOn], () => applyNodeCss(), { deep: true });
+watch(
+  () => [node.value.customCss, node.value.responsive, node.value.hideOn, node.value.states],
+  () => applyNodeCss(),
+  { deep: true }
+);
 
 // ---------- 子节点 / 插槽 ----------
 const childrenList = computed<SchemaNode[]>(() => {
@@ -742,7 +852,12 @@ const activeLayout = computed(() => {
 });
 
 const nodeStyle = computed<Record<string, any>>(() => {
-  const s: Record<string, any> = { ...(node.value.style || {}) };
+  const s: Record<string, any> = {
+    ...(node.value.style || {}),
+    ...variantStyle.value,
+    ...runtimeStateStyle.value,
+    ...previewStateStyle.value,
+  };
   if (activeLayout.value) {
     Object.assign(s, {
       position: "absolute",
@@ -773,5 +888,10 @@ const nodeStyle = computed<Record<string, any>>(() => {
 }
 .wp-repeater {
   width: 100%;
+}
+/* 设计态状态预览标记：虚线描边提示当前为临时预览。 */
+.wp-node[data-state-preview] {
+  outline: 1px dashed var(--el-color-warning);
+  outline-offset: 1px;
 }
 </style>

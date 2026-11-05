@@ -53,6 +53,7 @@ import { useSchemaStore } from "@/store/schema";
 import { useHistoryStore } from "@/store/history";
 import { useEditorStore } from "@/store/editor";
 import type { PageInfo } from "@/types";
+import { markPersisted, persistedRevision } from "../schema-sync";
 
 const props = defineProps<{ page: PageInfo | null; appId: number }>();
 const emit = defineEmits<{
@@ -60,6 +61,7 @@ const emit = defineEmits<{
   (e: "publish"): void;
   (e: "versions"): void;
   (e: "saved", payload: any): void;
+  (e: "conflict", payload: any): void;
 }>();
 
 const schema = useSchemaStore();
@@ -107,7 +109,7 @@ function redo() {
   history.redo();
 }
 
-async function save(silent = false): Promise<boolean> {
+async function save(silent = false, force = false): Promise<boolean> {
   const pageId = props.page?.id || schema.pageId;
   if (!pageId || !schema.schema) {
     if (!silent) ElMessage.warning("页面未就绪");
@@ -120,8 +122,11 @@ async function save(silent = false): Promise<boolean> {
     const res = await api.put(`/pages/${pageId}/schema/`, {
       schema: schema.schema,
       base_version: savedVersion.value || props.page?.version || undefined,
+      base_revision: force ? undefined : (persistedRevision.value || undefined),
+      force: force || undefined,
     });
     if (res?.page?.version) savedVersion.value = Number(res.page.version);
+    if (res?.schema_revision) markPersisted(Number(res.schema_revision));
     schema.markSaved();
     editor.saveStatus = "saved";
     editor.lastSavedAt = new Date().toISOString();
@@ -133,10 +138,13 @@ async function save(silent = false): Promise<boolean> {
     }
     return true;
   } catch (err: any) {
-    const conflict = Number(err?.status) === 409 || !!err?.data?.current_version;
+    const conflict = Number(err?.status) === 409 || !!err?.data?.current_version || !!err?.data?.current_revision;
     editor.saveStatus = conflict ? "conflict" : "error";
+    if (conflict) {
+      if (!force) emit("conflict", err?.data || {});
+    }
     if (!silent) {
-      ElMessage.error(conflict ? "页面已被其他人保存，请刷新后再编辑" : err?.message || "保存失败");
+      ElMessage.error(conflict ? "页面已被其他人保存，请处理冲突" : err?.message || "保存失败");
     }
     return false;
   } finally {

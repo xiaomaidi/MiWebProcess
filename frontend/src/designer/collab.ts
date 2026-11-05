@@ -14,7 +14,6 @@ const COLORS = ["#2563eb", "#7c3aed", "#059669", "#d97706", "#dc2626", "#0891b2"
 const state = reactive({
   connected: false,
   peers: {} as Record<string, CollabPeer>,
-  locks: {} as Record<string, string>,
 });
 const disposed = ref(false);
 let socket: WebSocket | null = null;
@@ -67,17 +66,8 @@ function onMessage(message: any) {
     peer.cursor = { x: Number(payload.x) || 0, y: Number(payload.y) || 0 };
   } else if (payload.kind === "selection") {
     peer.selection = Array.isArray(payload.ids) ? payload.ids.map(String) : [];
-  } else if (payload.kind === "lock") {
-    if (payload.action === "acquire" && payload.nodeId) {
-      state.locks[String(payload.nodeId)] = username;
-    } else if (payload.nodeId) {
-      delete state.locks[String(payload.nodeId)];
-    }
   } else if (payload.kind === "leave") {
     delete state.peers[username];
-    for (const [nodeId, owner] of Object.entries(state.locks)) {
-      if (owner === username) delete state.locks[nodeId];
-    }
   }
 }
 
@@ -86,9 +76,6 @@ function prune() {
   for (const [username, peer] of Object.entries(state.peers)) {
     if (peer.lastSeen < cutoff) {
       delete state.peers[username];
-      for (const [nodeId, owner] of Object.entries(state.locks)) {
-        if (owner === username) delete state.locks[nodeId];
-      }
     }
   }
 }
@@ -147,7 +134,6 @@ export function disconnectDesignerCollab() {
   socket = null;
   state.connected = false;
   state.peers = {};
-  state.locks = {};
 }
 
 export function sendCollabCursor(x: number, y: number) {
@@ -161,34 +147,14 @@ export function sendCollabSelection(ids: string[]) {
   send("selection", { ids });
 }
 
-export function acquireDesignerLock(nodeId: string): boolean {
-  const owner = state.locks[nodeId];
-  if (owner) return false;
-  send("lock", { nodeId, action: "acquire" });
-  return true;
-}
-
-export function releaseDesignerLock(nodeId: string) {
-  if (state.locks[nodeId]) return;
-  send("lock", { nodeId, action: "release" });
-}
-
-export function isRemoteLocked(nodeId: string): boolean {
-  return !!state.locks[nodeId];
-}
-
 export function useDesignerCollab() {
   return {
     state,
     peers: computed(() => Object.values(state.peers)),
-    remoteLocks: computed(() => state.locks),
     connected: computed(() => state.connected),
     connect: connectDesignerCollab,
     disconnect: disconnectDesignerCollab,
     sendCursor: sendCollabCursor,
     sendSelection: sendCollabSelection,
-    acquireLock: acquireDesignerLock,
-    releaseLock: releaseDesignerLock,
-    isRemoteLocked,
   };
 }

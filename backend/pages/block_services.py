@@ -824,3 +824,87 @@ def publish_block_to_market(
         "warnings": warnings,
     }
 
+# ---------------------------------------------------------------------------
+# 区块版本 diff
+# ---------------------------------------------------------------------------
+DIFF_MAX_ROWS = 500
+DIFF_VALUE_MAX = 400
+
+
+def _diff_value(value):
+    import json
+
+    try:
+        text = json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+    except Exception:
+        text = str(value)
+    return text[:DIFF_VALUE_MAX] + ("…" if len(text) > DIFF_VALUE_MAX else "")
+
+
+def _node_label(node: dict) -> str:
+    props = node.get("props") if isinstance(node.get("props"), dict) else {}
+    for key in ("text", "label", "content", "title", "value"):
+        value = props.get(key)
+        if isinstance(value, (str, int, float)) and str(value).strip():
+            return str(value)[:80]
+    return str(node.get("type") or "node")
+
+
+def diff_block_snapshots(from_snapshot: dict, to_snapshot: dict) -> dict:
+    """结构化对比两个 {rootId,nodes} 区块快照，结果有上限，供 UI 展示。"""
+    left = (from_snapshot or {}).get("nodes") if isinstance(from_snapshot, dict) else {}
+    right = (to_snapshot or {}).get("nodes") if isinstance(to_snapshot, dict) else {}
+    left = left if isinstance(left, dict) else {}
+    right = right if isinstance(right, dict) else {}
+    added_ids = [nid for nid in right if nid not in left]
+    removed_ids = [nid for nid in left if nid not in right]
+    changed = []
+    for nid in sorted(set(left) & set(right)):
+        a = left.get(nid) or {}
+        b = right.get(nid) or {}
+        fields = {}
+        for key in ("type", "props", "style", "layout", "responsiveLayout", "states", "variants", "activeVariant", "children", "slots", "condition", "events", "dataBinding", "motion", "customCss"):
+            if a.get(key) != b.get(key):
+                fields[key] = {"from": _diff_value(a.get(key)), "to": _diff_value(b.get(key))}
+        if fields:
+            changed.append({
+                "id": nid,
+                "type": str(b.get("type") or a.get("type") or ""),
+                "label": _node_label(b),
+                "fields": fields,
+            })
+    added = [{"id": nid, "type": str((right.get(nid) or {}).get("type") or ""), "label": _node_label(right.get(nid) or {})} for nid in added_ids[:DIFF_MAX_ROWS]]
+    removed = [{"id": nid, "type": str((left.get(nid) or {}).get("type") or ""), "label": _node_label(left.get(nid) or {})} for nid in removed_ids[:DIFF_MAX_ROWS]]
+    changed = changed[:DIFF_MAX_ROWS]
+    return {
+        "from": {"rootId": (from_snapshot or {}).get("rootId"), "nodeCount": len(left)},
+        "to": {"rootId": (to_snapshot or {}).get("rootId"), "nodeCount": len(right)},
+        "summary": {
+            "added": len(added_ids),
+            "removed": len(removed_ids),
+            "changed": len(changed),
+            "unchanged": max(0, len(set(left) & set(right)) - len(changed)),
+        },
+        "layoutChanged": (from_snapshot or {}).get("rootId") != (to_snapshot or {}).get("rootId"),
+        "added": added,
+        "removed": removed,
+        "changed": changed,
+        "truncated": len(added_ids) > DIFF_MAX_ROWS or len(removed_ids) > DIFF_MAX_ROWS or len(changed) >= DIFF_MAX_ROWS,
+    }
+
+
+def diff_block_versions(block: PageBlock, from_version: int, to_version: int) -> dict:
+    from .models import PageBlockVersion
+
+    left = PageBlockVersion.objects.filter(block=block, version=from_version).first()
+    right = PageBlockVersion.objects.filter(block=block, version=to_version).first()
+    if left is None or right is None:
+        missing = from_version if left is None else to_version
+        raise ValidationError({"detail": f"版本 {missing} 不存在"})
+    result = diff_block_snapshots(left.snapshot or {}, right.snapshot or {})
+    result["from"]["version"] = left.version
+    result["to"]["version"] = right.version
+    result["from"]["changelog"] = left.changelog
+    result["to"]["changelog"] = right.changelog
+    return result
+

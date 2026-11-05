@@ -99,7 +99,7 @@
     <div class="wp-rec-foot">
       <span v-if="lastError" class="wp-rec-error">{{ lastError }}</span>
       <span v-else-if="hint" class="wp-rec-hint">{{ hint }}</span>
-      <span v-else class="wp-rec-hint">点击行跳转快照；回放不会清空撤销历史</span>
+      <span v-else class="wp-rec-hint">点击行跳转快照；整次回放会合并为一条撤销命令</span>
     </div>
   </div>
 </template>

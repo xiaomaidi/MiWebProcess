@@ -84,13 +84,20 @@ import {
   type VisibleNodeResult,
 } from "../utils/canvasVirtualization";
 import { deepClone } from "@/utils";
-import { acquire as acquireServerLock, isRemoteLocked, release as releaseServerLock } from "../lock-session";
+import {
+  acquire as acquireServerLock,
+  isRemoteLocked,
+  release as releaseServerLock,
+  useLockSession,
+} from "../lock-session";
 import { displayNodes, layoutFor, writeLayout } from "../responsive-layout";
 
 const schema = useSchemaStore();
 const editor = useEditorStore();
 const compStore = useComponentStore();
 const history = useHistoryStore();
+/** 服务端锁的只读视图（模块级单例，DesignerView 已负责 connect/dispose）。 */
+const lockSession = useLockSession();
 
 const scrollRef = ref<HTMLElement | null>(null);
 const innerRef = ref<HTMLElement | null>(null);
@@ -421,13 +428,22 @@ interface DragState {
   kind: "move" | "resize";
   id: string;
   ids: string[];
+  /** 本次拖动实际申请 / 持有的服务端锁（多选拖动会申请全部选中节点）。 */
+  lockIds: string[];
   parentId: string;
   startX: number;
   startY: number;
   orig: Record<string, Rect>;
   bbox: Rect;
   before: any;
+  dirtyBefore: boolean;
   moved: boolean;
+}
+
+interface PendingDragLock {
+  /** 取消 / 被新请求取代后，迟到的 acquire 回执只释放锁，不再启动拖动。 */
+  lockIds: string[];
+  cancelled: boolean;
 }
 
 interface MarqueeState {
@@ -440,6 +456,11 @@ interface MarqueeState {
 
 let dragState: DragState | null = null;
 let marqueeState: MarqueeState | null = null;
+/** 正在等待服务端锁回执的 pointerdown；用于阻止并发拖动 / 乱序回执。 */
+let pendingDragLock: PendingDragLock | null = null;
+/** 拖动被远端锁打断后，等 pointerup 再拦截一次 click（避免多选被折叠成单选）。 */
+let abortedDragIds: string[] | null = null;
+let canvasDisposed = false;
 /** 多选整体拖动后浏览器仍会派发 click，捕获阶段拦截一次以免 NodeRenderer 把多选折叠成单选。 */
 let suppressClickOnce = false;
 let suppressClickTimer = 0;
@@ -522,8 +543,136 @@ function collectSnapTargets(ids: string[], parentId: string): SnapTargets {
   return { vertical: [...vertical], horizontal: [...horizontal] };
 }
 
+function nodeLabel(id: string): string {
+  const node = schema.node(id);
+  if (!node) return id;
+  const meta = compStore.meta(node.type);
+  return meta?.label || node.type || id;
+}
+
+function lockOwner(nodeId: string): string {
+  const lock = lockSession.locks.value[nodeId];
+  return lock ? String(lock.username || "").trim() : "";
+}
+
+/** 统一的服务端锁冲突提示：能拿到 owner 时带上，否则说明连接/权限原因。 */
+function warnLockConflict(nodeId: string, action: string): void {
+  const label = nodeLabel(nodeId);
+  const owner = lockOwner(nodeId);
+  if (owner) ElMessage.warning(`节点「${label}」已被 ${owner} 锁定，${action}`);
+  else ElMessage.warning(`无法锁定节点「${label}」（可能已被他人编辑或协作连接已断开），${action}`);
+}
+
+/**
+ * 释放本次涉及、且已无当前拖动 / 新申请依赖的锁。
+ * 迟到的旧回执不能释放已被新一轮拖动或待回执申请接管的同一节点。
+ */
+function releaseIdleLocks(lockIds: string[]): void {
+  for (const id of lockIds) {
+    if (dragState?.lockIds.includes(id)) continue;
+    if (pendingDragLock?.lockIds.includes(id)) continue;
+    releaseServerLock(id);
+  }
+}
+
+/** 取消尚未回执的锁申请；迟到的回执由 beginGuardedDrag 负责释放。 */
+function cancelPendingDragLock(): void {
+  if (!pendingDragLock) return;
+  pendingDragLock.cancelled = true;
+  pendingDragLock = null;
+}
+
+/**
+ * pointerdown 的异步锁守卫：
+ * 1. 先向服务端申请锁（单节点 / 多选全部节点），期间不改 layout、不建 dragState；
+ * 2. 被拒绝、等待期间节点消失/被本地锁定/被远端抢占 → 释放已拿到的锁并放弃拖动；
+ * 3. 等待期间 pointerup / pointercancel / 新 pointerdown → 标记取消，回执到达后只释放锁。
+ */
+async function beginGuardedDrag(
+  e: PointerEvent,
+  hitId: string,
+  resizing: boolean,
+  ids: string[],
+  parentId: string
+): Promise<void> {
+  const lockIds = resizing ? [hitId] : [...new Set(ids)];
+  const request: PendingDragLock = { lockIds, cancelled: false };
+  pendingDragLock = request;
+
+  let results: boolean[] = [];
+  try {
+    results = await Promise.all(lockIds.map((id) => acquireServerLock(id)));
+  } catch {
+    results = lockIds.map(() => false);
+  }
+
+  if (request.cancelled || pendingDragLock !== request || canvasDisposed) {
+    if (pendingDragLock === request) pendingDragLock = null;
+    releaseIdleLocks(lockIds);
+    return;
+  }
+  pendingDragLock = null;
+
+  const deniedIndex = results.findIndex((granted) => !granted);
+  if (deniedIndex >= 0) {
+    releaseIdleLocks(lockIds);
+    const action =
+      lockIds.length > 1
+        ? `已取消本次拖动（多选 ${lockIds.length} 个节点）`
+        : resizing
+          ? "无法缩放"
+          : "无法拖动";
+    warnLockConflict(lockIds[deniedIndex], action);
+    return;
+  }
+
+  // 回执与 lock 事件可能乱序：等锁期间节点被删除 / 本地锁定 / 远端抢占时同样放弃。
+  if (lockIds.some((id) => !schema.node(id))) {
+    releaseIdleLocks(lockIds);
+    ElMessage.warning("节点已不存在，本次拖动已取消");
+    return;
+  }
+  const conflictId = lockIds.find((id) => schema.isNodeLocked(id) || isRemoteLocked(id));
+  if (conflictId) {
+    releaseIdleLocks(lockIds);
+    warnLockConflict(conflictId, resizing ? "无法缩放" : "无法拖动");
+    return;
+  }
+
+  const orig: Record<string, Rect> = {};
+  for (const id of ids) {
+    const layout = layoutFor(schema.node(id), editor.device);
+    if (layout) orig[id] = { x: layout.x, y: layout.y, width: layout.width || 0, height: layout.height || 0 };
+  }
+  const bbox = unionRect(Object.values(orig));
+  if (!bbox) {
+    releaseIdleLocks(lockIds);
+    return;
+  }
+
+  dragState = {
+    kind: resizing ? "resize" : "move",
+    id: hitId,
+    ids,
+    lockIds,
+    parentId,
+    startX: e.clientX,
+    startY: e.clientY,
+    orig,
+    bbox,
+    before: deepClone(schema.schema),
+    dirtyBefore: schema.dirty,
+    moved: false,
+  };
+}
+
 function onNodePointerDown(e: PointerEvent) {
   if (layoutMode.value !== "free" || e.button !== 0) return;
+  // 新的按压一律作废尚未回执的锁申请，保证同一时刻只有一次拖动可能启动。
+  cancelPendingDragLock();
+  abortedDragIds = null;
+  if (dragState) return;
+
   const targetEl = e.target as HTMLElement | null;
   if (targetEl?.closest?.(".wp-node-close") != null) return; // × 按钮不触发拖动
   if (targetEl?.closest?.(".wp-resize-handle") == null && targetEl?.closest?.(".wp-node") == null) {
@@ -537,13 +686,19 @@ function onNodePointerDown(e: PointerEvent) {
   }
   const n = schema.node(hit.id);
   if (!n || !layoutFor(n, editor.device) || hit.id === schema.schema?.rootId) return;
-  if (schema.isNodeLocked(hit.id) || isRemoteLocked(hit.id)) return; // 本地锁定或他人实时锁定
-  void acquireServerLock(hit.id);
+  if (schema.isNodeLocked(hit.id)) return; // 本地锁定：保持原有静默行为
 
   const resizing = targetEl?.closest?.(".wp-resize-handle") != null;
   const additive = e.ctrlKey || e.metaKey || e.shiftKey;
+
+  // 先检查他人实时锁：已知被远端持有时不再发 acquire，直接提示 owner。
+  if (isRemoteLocked(hit.id)) {
+    warnLockConflict(hit.id, resizing ? "无法缩放" : "无法拖动");
+    return;
+  }
+
   if (!resizing && !schema.selectedIds.includes(hit.id)) {
-    // Ctrl 点击只做选择（交给 NodeRenderer 的 click），普通点击先选中再拖动
+    // Ctrl 点击只做选择（交给 NodeRenderer 的 click），普通点击先选中再等待锁
     if (additive) return;
     schema.select(hit.id);
   }
@@ -566,25 +721,8 @@ function onNodePointerDown(e: PointerEvent) {
     if (movable.includes(hit.id)) ids = movable;
   }
 
-  const orig: Record<string, Rect> = {};
-  for (const id of ids) {
-    const l = layoutFor(schema.node(id), editor.device);
-    if (l) orig[id] = { x: l.x, y: l.y, width: l.width || 0, height: l.height || 0 };
-  }
-  const bbox = unionRect(Object.values(orig));
-  if (!bbox) return;
-  dragState = {
-    kind: resizing ? "resize" : "move",
-    id: hit.id,
-    ids,
-    parentId,
-    startX: e.clientX,
-    startY: e.clientY,
-    orig,
-    bbox,
-    before: deepClone(schema.schema),
-    moved: false,
-  };
+  // 关键：layout / dragState 都不在这里改，等 acquire 成功后再进入 beginGuardedDrag 的提交段。
+  void beginGuardedDrag(e, hit.id, resizing, ids, parentId);
 }
 
 function startMarquee(e: PointerEvent) {
@@ -606,6 +744,56 @@ function startMarquee(e: PointerEvent) {
   marquee.value = { x: p.x, y: p.y, width: 0, height: 0 };
 }
 
+function restoreDragStartLayout(state: DragState): void {
+  const beforeNodes: Record<string, any> = state.before?.nodes || {};
+  for (const id of state.ids) {
+    const node = schema.node(id);
+    const snapshot = beforeNodes[id];
+    if (!node || !snapshot) continue;
+    // layout 与多端覆盖都按拖动开始时的快照精确还原，避免响应式布局被写入脏覆盖。
+    if (snapshot.layout) node.layout = deepClone(snapshot.layout);
+    else delete (node as any).layout;
+    if (snapshot.responsiveLayout) (node as any).responsiveLayout = deepClone(snapshot.responsiveLayout);
+    else delete (node as any).responsiveLayout;
+  }
+}
+
+/** 拖动中途锁被他人抢占：还原起始 layout、停拖、清辅助线、释放锁并提示。 */
+function abortDragForLostLock(nodeId: string): void {
+  const state = dragState;
+  if (!state) return;
+  dragState = null;
+  restoreDragStartLayout(state);
+  guides.value = { v: [], h: [] };
+  feedback.value = null;
+  schema.dirty = state.dirtyBefore;
+  abortedDragIds = [...state.ids];
+  for (const id of state.lockIds) releaseServerLock(id);
+  warnLockConflict(nodeId, `本次${state.kind === "move" ? "拖动" : "缩放"}已撤销`);
+}
+
+/** 被远端锁打断的拖动结束后，浏览器仍可能派发 click；多选时拦截一次以免折叠成单选。 */
+function applyAbortedDragClickGuard(): void {
+  const ids = abortedDragIds;
+  abortedDragIds = null;
+  if (!ids || ids.length <= 1) return;
+  suppressClickOnce = true;
+  window.clearTimeout(suppressClickTimer);
+  suppressClickTimer = window.setTimeout(() => {
+    suppressClickOnce = false;
+  }, 150);
+}
+
+// 锁归属变化时立即检查当前拖动（pointermove 中还有同步兜底检查）。
+watch(
+  () => lockSession.remoteLocks.value,
+  () => {
+    if (!dragState) return;
+    const conflictId = dragState.ids.find((id) => isRemoteLocked(id));
+    if (conflictId) abortDragForLostLock(conflictId);
+  }
+);
+
 function onPointerMove(e: PointerEvent) {
   if (marqueeState) {
     const p = pointFromEvent(e);
@@ -624,6 +812,12 @@ function onPointerMove(e: PointerEvent) {
   }
   if (!dragState) return;
   const state = dragState;
+  // 兜底：lock 事件与 pointermove 可能乱序，移动前同步确认锁仍属于自己。
+  const conflictId = state.ids.find((id) => isRemoteLocked(id));
+  if (conflictId) {
+    abortDragForLostLock(conflictId);
+    return;
+  }
   const dx = (e.clientX - state.startX) / editor.zoom;
   const dy = (e.clientY - state.startY) / editor.zoom;
   if (!state.moved && Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
@@ -665,6 +859,8 @@ function onPointerMove(e: PointerEvent) {
 }
 
 function onPointerUp() {
+  // 等待锁期间松手 / 取消：作废本次申请（回执到达后只释放锁）。
+  cancelPendingDragLock();
   if (marqueeState) {
     const state = marqueeState;
     const rect = marquee.value;
@@ -693,7 +889,10 @@ function onPointerUp() {
     }
     return;
   }
-  if (!dragState) return;
+  if (!dragState) {
+    applyAbortedDragClickGuard();
+    return;
+  }
   const state = dragState;
   if (state.moved) {
     const after = deepClone(schema.schema);
@@ -708,7 +907,8 @@ function onPointerUp() {
       }, 150);
     }
   }
-  if (dragState?.id) releaseServerLock(dragState.id);
+  // 多选拖动按申请到的全部锁释放，避免只释放被按住的那个节点。
+  for (const id of state.lockIds) releaseServerLock(id);
   dragState = null;
   guides.value = { v: [], h: [] };
   feedback.value = null;
@@ -758,6 +958,17 @@ onMounted(() => {
   }
 });
 onBeforeUnmount(() => {
+  canvasDisposed = true;
+  cancelPendingDragLock();
+  abortedDragIds = null;
+  if (dragState) {
+    // 卸载时仍在拖动：还原起始 layout（不上历史）并释放本次持有的锁。
+    const state = dragState;
+    dragState = null;
+    restoreDragStartLayout(state);
+    schema.dirty = state.dirtyBefore;
+    for (const id of state.lockIds) releaseServerLock(id);
+  }
   const el = wrapperEl();
   el?.removeEventListener("pointerdown", pd);
   el?.removeEventListener("click", onClickCapture, true);

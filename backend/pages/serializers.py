@@ -19,12 +19,21 @@ class PageSerializer(serializers.ModelSerializer):
             "status",
             "version",
             "schema_version",
+            "schema_revision",
             "thumbnail_url",
             "current_version_id",
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "status", "version", "schema_version", "created_at", "updated_at")
+        read_only_fields = (
+            "id",
+            "status",
+            "version",
+            "schema_version",
+            "schema_revision",
+            "created_at",
+            "updated_at",
+        )
 
 
 class PageVersionSerializer(serializers.ModelSerializer):

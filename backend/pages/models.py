@@ -26,6 +26,16 @@ class Page(models.Model):
     schema = models.JSONField(default=dict, blank=True)
     version = models.IntegerField(default=0)  # 草稿修订号，每次保存 schema +1
     schema_version = models.IntegerField(default=1)  # schema.schemaVersion
+    # 草稿 schema 的持久化修订号：与实时通道的临时 revision 分离，专门用于保存冲突检测。
+    schema_revision = models.PositiveIntegerField(default=1)
+    schema_updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        help_text="最近一次保存草稿 schema 的用户（冲突提示用）",
+    )
     thumbnail_url = models.CharField(max_length=500, blank=True, default="")
     current_version = models.ForeignKey(
         "pages.PageVersion",

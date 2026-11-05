@@ -51,10 +51,48 @@
           <div class="wp-block-lib-actions">
             <el-button size="small" type="primary" plain @click="insert(block)">插入引用</el-button>
             <el-button v-if="block.page_id" size="small" link @click="openEditor(block)">编辑</el-button>
+            <el-button size="small" link @click="openVersions(block)">版本</el-button>
+            <el-button size="small" link @click="openPublish(block)">发布市场</el-button>
           </div>
         </div>
       </div>
     </el-scrollbar>
+
+    <el-dialog v-model="versionsOpen" :title="`区块版本 · ${activeBlock?.name || ''}`" width="760px" append-to-body>
+      <div class="wp-block-version-actions">
+        <el-button size="small" type="primary" plain :loading="versionSaving" @click="createVersion">保存当前版本</el-button>
+        <span class="wp-block-lib-hint">回滚只恢复草稿，不会自动重发已发布页面。</span>
+      </div>
+      <el-table :data="versions" size="small" max-height="230">
+        <el-table-column prop="version" label="版本" width="64" />
+        <el-table-column prop="changelog" label="说明" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="created_by_name" label="操作人" width="90" />
+        <el-table-column label="时间" width="110"><template #default="{ row }">{{ formatTime(row.created_at) }}</template></el-table-column>
+        <el-table-column label="操作" width="80"><template #default="{ row }"><el-button size="small" link type="primary" @click="rollbackVersion(row)">回滚</el-button></template></el-table-column>
+      </el-table>
+      <el-empty v-if="!versions.length" description="暂无版本记录" :image-size="44" />
+      <div v-if="versions.length > 1" class="wp-block-diff-tools">
+        <span>版本对比</span>
+        <el-select v-model="diffFrom" size="small" style="width:100px">
+          <el-option v-for="v in versions" :key="`f-${v.version}`" :label="`v${v.version}`" :value="v.version" />
+        </el-select>
+        <span>→</span>
+        <el-select v-model="diffTo" size="small" style="width:100px">
+          <el-option v-for="v in versions" :key="`t-${v.version}`" :label="`v${v.version}`" :value="v.version" />
+        </el-select>
+        <BlockVersionDiff v-if="activeBlock && diffFrom && diffTo" :block-id="activeBlock.id" :from="diffFrom" :to="diffTo" />
+      </div>
+    </el-dialog>
+
+    <el-dialog v-model="publishOpen" title="发布区块到市场" width="480px" append-to-body>
+      <el-form label-width="76px" @submit.prevent>
+        <el-form-item label="名称"><el-input v-model="publishForm.name" /></el-form-item>
+        <el-form-item label="Slug"><el-input v-model="publishForm.slug" placeholder="my-block" /></el-form-item>
+        <el-form-item label="描述"><el-input v-model="publishForm.description" type="textarea" :rows="2" /></el-form-item>
+        <el-form-item label="状态"><el-radio-group v-model="publishForm.status"><el-radio value="draft">草稿</el-radio><el-radio value="published">直接发布</el-radio></el-radio-group></el-form-item>
+      </el-form>
+      <template #footer><el-button @click="publishOpen = false">取消</el-button><el-button type="primary" :loading="publishing" @click="publishToMarket">发布</el-button></template>
+    </el-dialog>
 
     <el-dialog v-model="createOpen" title="从当前选区创建区块" width="460px" append-to-body>
       <el-form label-width="72px" @submit.prevent>
@@ -99,6 +137,7 @@ import {
   type BlockSummary,
 } from "@/designer/block-api";
 import { useSchemaStore } from "@/store/schema";
+import BlockVersionDiff from "./BlockVersionDiff.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -136,6 +175,8 @@ const publishOpen = ref(false);
 const versionSaving = ref(false);
 const publishing = ref(false);
 const versions = ref<any[]>([]);
+const diffFrom = ref(0);
+const diffTo = ref(0);
 const activeBlock = ref<BlockSummary | null>(null);
 const publishForm = reactive({ name: "", slug: "", description: "", status: "published" });
 const form = reactive({ name: "", code: "", description: "", insertAfterCreate: true });
@@ -249,6 +290,13 @@ async function loadVersions() {
   if (!activeBlock.value) return;
   const data = await api.get<any>(`/blocks/${activeBlock.value.id}/versions/?size=100`);
   versions.value = data.results || data || [];
+  syncDiffDefaults();
+}
+function syncDiffDefaults() {
+  const list = versions.value;
+  if (!list.length) { diffFrom.value = 0; diffTo.value = 0; return; }
+  diffTo.value = Number(list[0].version) || 0;
+  diffFrom.value = Number(list[1]?.version ?? list[0].version) || 0;
 }
 async function createVersion() {
   if (!activeBlock.value) return;

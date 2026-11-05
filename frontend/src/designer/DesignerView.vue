@@ -1,22 +1,48 @@
 <template>
   <div v-loading="loading" class="wp-designer">
     <header class="wp-d-header">
-      <el-button size="small" text @click="goBack">← 返回应用</el-button>
-      <span class="wp-d-title">{{ page?.name || "页面设计器" }}</span>
-      <span v-if="page" class="wp-d-meta">路径 /{{ page.path }}</span>
-      <span v-if="page" class="wp-d-meta">草稿 v{{ page.version }}</span>
-      <span v-if="schema.dirty" class="wp-d-dirty">● 未保存</span>
-      <el-button size="small" class="wp-d-ai" @click="reviewOpen = true">🔎 AI 评审</el-button>
-      <el-button size="small" @click="diffOpen = true">🧾 差异</el-button>
-      <el-button size="small" @click="coordinationOpen = true">🧩 协同</el-button>
-      <el-button size="small" :loading="regenerating" @click="regeneratePage">♻️ AI 重生成</el-button>
-      <el-button size="small" @click="agentOpen = true">🤖 AI 助手</el-button>
-      <el-button class="wp-d-mobile-btn" size="small" @click="mobilePanel = mobilePanel === 'left' ? '' : 'left'">面板</el-button>
-      <el-button class="wp-d-mobile-btn" size="small" @click="mobilePanel = mobilePanel === 'right' ? '' : 'right'">属性</el-button>
-      <el-button size="small" type="primary" plain @click="aiOpen = true">✨ AI 生成</el-button>
-      <CollabPresence />
-      <el-button size="small" @click="debugOpen = true">调试</el-button>
-      <el-button size="small" @click="recorderOpen = true">录制</el-button>
+      <div class="wp-d-header-main">
+        <el-button size="small" text class="wp-d-back" @click="goBack">← 返回应用</el-button>
+        <span class="wp-d-title">{{ page?.name || "页面设计器" }}</span>
+        <span v-if="page" class="wp-d-meta">路径 /{{ page.path }}</span>
+        <span v-if="page" class="wp-d-meta">草稿 v{{ page.version }}</span>
+        <span v-if="schema.dirty" class="wp-d-dirty">● 未保存</span>
+      </div>
+      <div class="wp-d-header-actions">
+        <el-dropdown class="wp-d-ai-menu" trigger="click" @command="onHeaderCommand">
+          <el-button size="small">✨ AI 工具<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="ai">✨ AI 生成</el-dropdown-item>
+              <el-dropdown-item command="review">🔎 AI 评审</el-dropdown-item>
+              <el-dropdown-item command="regenerate">♻️ AI 重生成</el-dropdown-item>
+              <el-dropdown-item command="agent">🤖 AI 助手</el-dropdown-item>
+              <el-dropdown-item divided command="diff">🧾 版本差异</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+        <el-button size="small" class="wp-d-collab-btn" @click="coordinationOpen = true">🧩 协同</el-button>
+        <CollabPresence class="wp-d-presence" />
+        <el-button size="small" class="wp-d-debug-btn" @click="debugOpen = true">调试</el-button>
+        <el-button size="small" class="wp-d-record-btn" @click="recorderOpen = true">录制</el-button>
+        <el-button class="wp-d-mobile-btn" size="small" @click="mobilePanel = mobilePanel === 'left' ? '' : 'left'">面板</el-button>
+        <el-button class="wp-d-mobile-btn" size="small" @click="mobilePanel = mobilePanel === 'right' ? '' : 'right'">属性</el-button>
+        <el-dropdown class="wp-d-mobile-more" trigger="click" @command="onHeaderCommand">
+          <el-button size="small">更多<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="ai">✨ AI 生成</el-dropdown-item>
+              <el-dropdown-item command="review">🔎 AI 评审</el-dropdown-item>
+              <el-dropdown-item command="regenerate">♻️ AI 重生成</el-dropdown-item>
+              <el-dropdown-item command="agent">🤖 AI 助手</el-dropdown-item>
+              <el-dropdown-item divided command="diff">🧾 版本差异</el-dropdown-item>
+              <el-dropdown-item command="collab">🧩 协同</el-dropdown-item>
+              <el-dropdown-item command="debug">调试</el-dropdown-item>
+              <el-dropdown-item command="record">录制</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
     </header>
 
     <DesignerToolbar
@@ -27,6 +53,7 @@
       @publish="publishOpen = true"
       @versions="versionsOpen = true"
       @saved="onDraftSaved"
+      @conflict="onSaveConflict"
     />
 
     <div class="wp-d-body">
@@ -139,6 +166,7 @@
 import { onBeforeUnmount, onMounted, provide, reactive, ref, watch } from "vue";
 import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
+import { ArrowDown } from "@element-plus/icons-vue";
 import { api } from "@/api";
 import { useSchemaStore } from "@/store/schema";
 import { useComponentStore } from "@/store/component";
@@ -154,6 +182,17 @@ import CollabCursors from "./components/CollabCursors.vue";
 import DesignerDebuggerPanel from "./components/DesignerDebuggerPanel.vue";
 import RecorderPanel from "./components/RecorderPanel.vue";
 import { connectDesignerCollab, disconnectDesignerCollab, sendCollabCursor, sendCollabSelection } from "./collab";
+import {
+  connect as connectSchemaSync,
+  dispose as disposeSchemaSync,
+  onRemote as onRemoteSchema,
+  sendSchema,
+  markPersisted,
+  persistedRevision,
+  classifyRemoteSchema,
+  withRemoteApply,
+  applyingRemote,
+} from "./schema-sync";
 import { connect as connectDesignerLocks, disconnect as disconnectDesignerLocks } from "./lock-session";
 import BlockLibrary from "./components/BlockLibrary.vue";
 import OutlinePanel from "./components/OutlinePanel.vue";
@@ -348,13 +387,14 @@ async function loadAll() {
   try {
     const [pageRes, schemaRes, dsRes, modelRes, compRes] = await Promise.all([
       api.get<PageInfo>(`/pages/${pageId}/`),
-      api.get<{ schema: PageSchema }>(`/pages/${pageId}/schema/`),
+      api.get<{ schema: PageSchema; schema_revision?: number }>(`/pages/${pageId}/schema/`),
       api.get(`/apps/${appId}/datasources/`),
       api.get(`/apps/${appId}/models/`),
       api.get<{ components?: ComponentMeta[] }>(`/components/registry/`),
     ]);
     page.value = pageRes;
     schema.setSchema(schemaRes?.schema || schema.createEmpty(), pageId, appId);
+    markPersisted(Number(schemaRes?.schema_revision) || 1);
     history.clear();
     editor.saveStatus = "saved";
     editor.lastSavedAt = new Date().toISOString();
@@ -385,6 +425,9 @@ function onAiGenerated(generated: PageSchema) {
 function onAgentApplied(updated: PageSchema) {
   schema.setSchema(updated, pageId, appId);
   api.get<PageInfo>(`/pages/${pageId}/`).then((p) => (page.value = p)).catch(() => undefined);
+  api.get<{ schema_revision?: number }>(`/pages/${pageId}/schema/`)
+    .then((res) => markPersisted(Number(res?.schema_revision) || persistedRevision.value || 1))
+    .catch(() => undefined);
   ElMessage.success("AI 修改已应用，可继续对话或撤销前先保存");
 }
 
@@ -404,10 +447,11 @@ async function regeneratePage() {
     await api.post(`/ai/pages/${pageId}/regenerate/`, { publish: false });
     const [pageRes, schemaRes] = await Promise.all([
       api.get<PageInfo>(`/pages/${pageId}/`),
-      api.get<{ schema: PageSchema }>(`/pages/${pageId}/schema/`),
+      api.get<{ schema: PageSchema; schema_revision?: number }>(`/pages/${pageId}/schema/`),
     ]);
     page.value = pageRes;
     schema.setSchema(schemaRes?.schema || schema.createEmpty(), pageId, appId);
+    markPersisted(Number(schemaRes?.schema_revision) || 1);
     history.clear();
     ElMessage.success("AI 已重新生成当前页，请检查后保存或发布");
   } catch (error: any) {
@@ -432,8 +476,9 @@ async function loadDiff() {
 async function onRolledBack() {
   // 回滚已将快照载入草稿：重新加载 schema
   try {
-    const res = await api.get<{ schema: PageSchema }>(`/pages/${pageId}/schema/`);
+    const res = await api.get<{ schema: PageSchema; schema_revision?: number }>(`/pages/${pageId}/schema/`);
     schema.setSchema(res?.schema || schema.createEmpty(), pageId, appId);
+    markPersisted(Number(res?.schema_revision) || 1);
     history.clear();
     ElMessage.success("草稿已更新为回滚版本，请检查后保存/发布");
   } catch {
@@ -536,18 +581,95 @@ function startAutosave() {
 function onDraftSaved(payload: any) {
   clearLocalDraft();
   if (payload?.page) page.value = payload.page;
+  if (payload?.schema_revision) markPersisted(Number(payload.schema_revision));
 }
 
 // 路由参数变化（同一设计器组件内切换页面）时重新加载
 watch(
   () => [route.params.appId, route.params.pageId],
   async () => {
+    const nextPage = Number(route.params.pageId);
+    if (Number.isFinite(nextPage) && nextPage > 0 && nextPage !== pageId) {
+      // pageId/appId 是 setup 常量；切换页面时整页重载，确保锁/同步/数据源全部换到新页面。
+      window.location.assign(route.fullPath);
+      return;
+    }
     stopAutosave();
     await loadAll();
     await checkLocalDraft();
     startAutosave();
   }
 );
+
+function onHeaderCommand(command: string) {
+  if (command === "ai") aiOpen.value = true;
+  else if (command === "review") reviewOpen.value = true;
+  else if (command === "diff") diffOpen.value = true;
+  else if (command === "agent") agentOpen.value = true;
+  else if (command === "regenerate") void regeneratePage();
+  else if (command === "collab") coordinationOpen.value = true;
+  else if (command === "debug") debugOpen.value = true;
+  else if (command === "record") recorderOpen.value = true;
+}
+
+let stopRemoteSchema: (() => void) | null = null;
+let lastRemoteConflictAt = 0;
+
+function onRemoteSchemaChange(remote: any) {
+  if (!schema.schema) return;
+  const decision = classifyRemoteSchema({
+    localSchema: schema.schema,
+    remoteSchema: remote.schema,
+    dirty: schema.dirty,
+  });
+  if (decision === "apply") {
+    withRemoteApply(() => schema.setSchema(remote.schema, pageId, appId));
+    return;
+  }
+  if (decision === "conflict" && Date.now() - lastRemoteConflictAt > 5000) {
+    lastRemoteConflictAt = Date.now();
+    ElMessage.warning("协作者有新的未保存修改；当前本地也有改动，保存时会进行冲突检查");
+  }
+}
+
+watch(
+  () => schema.schema,
+  (value) => {
+    if (!value || applyingRemote.value) return;
+    sendSchema(value, persistedRevision.value);
+  },
+  { deep: true }
+);
+
+async function onSaveConflict(data: any) {
+  try {
+    await ElMessageBox.confirm(
+      "服务器上的页面已被其他人保存。重新加载会丢弃本地修改；覆盖保存会用当前画布强制写回。",
+      "保存冲突",
+      {
+        confirmButtonText: "重新加载远端",
+        cancelButtonText: "覆盖保存",
+        distinguishCancelAndClose: true,
+        type: "warning",
+      },
+    );
+    const res = await api.get<{ schema: PageSchema; schema_revision?: number }>(`/pages/${pageId}/schema/`);
+    schema.setSchema(res?.schema || schema.createEmpty(), pageId, appId);
+    markPersisted(Number(res?.schema_revision) || Number(data?.current_revision) || 1);
+    schema.markSaved();
+    history.clear();
+    editor.saveStatus = "saved";
+    ElMessage.success("已加载远端最新版本");
+  } catch (action) {
+    if (action === "cancel") {
+      const saved = await (toolbarRef.value as any)?.save?.(true, true);
+      if (saved) ElMessage.success("已覆盖保存当前画布");
+      else editor.saveStatus = "conflict";
+      return;
+    }
+    editor.saveStatus = "conflict";
+  }
+}
 
 function onCollabPointerMove(event: PointerEvent) {
   const rect = (event.currentTarget as HTMLElement | null)?.getBoundingClientRect();
@@ -565,6 +687,8 @@ onMounted(async () => {
   connectDesignerCollab(appId, pageId);
   connectDesignerLocks(pageId);
   await loadAll();
+  connectSchemaSync(pageId);
+  stopRemoteSchema = onRemoteSchema(onRemoteSchemaChange);
   await checkLocalDraft();
   startAutosave();
 });
@@ -579,6 +703,9 @@ function onBeforeUnload(e: BeforeUnloadEvent) {
 }
 window.addEventListener("beforeunload", onBeforeUnload);
 onBeforeUnmount(() => {
+  stopRemoteSchema?.();
+  stopRemoteSchema = null;
+  disposeSchemaSync();
   disconnectDesignerCollab();
   disconnectDesignerLocks();
   stopAutosave();
@@ -613,10 +740,26 @@ onBeforeRouteLeave(async () => {
 .wp-d-header {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--el-border-color-light);
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  background: #fff;
 }
+.wp-d-header-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+.wp-d-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.wp-d-mobile-more { display: none; }
 .wp-d-title {
   font-size: 15px;
   font-weight: 600;
@@ -713,6 +856,12 @@ onBeforeRouteLeave(async () => {
 .wp-d-mobile-btn { display: none; }
 .wp-d-mobile-mask { display: none; }
 @media (max-width: 900px) {
+  .wp-d-header { gap: 4px; padding: 6px 8px; flex-wrap: nowrap; overflow-x: auto; }
+  .wp-d-header-main { gap: 6px; min-width: 0; }
+  .wp-d-title { max-width: 118px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  .wp-d-meta, .wp-d-dirty, .wp-d-presence, .wp-d-ai-menu, .wp-d-collab-btn, .wp-d-debug-btn, .wp-d-record-btn { display: none; }
+  .wp-d-mobile-more { display: inline-flex; }
+  .wp-d-header-actions { gap: 4px; }
   .wp-d-mobile-btn { display: inline-flex; }
   .wp-d-left, .wp-d-right { position: fixed; top: 0; bottom: 0; z-index: 3001; width: min(82vw, 320px); background: #fff; box-shadow: 0 0 40px rgba(15, 23, 42, 0.25); transition: transform 0.2s ease; }
   .wp-d-left { left: 0; transform: translateX(-105%); }

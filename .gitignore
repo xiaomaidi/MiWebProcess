@@ -13,6 +13,8 @@ static_prerender/
 node_modules/
 dist/
 dist-ssr/
+frontend/test-results/
+frontend/playwright-report/
 .tmp/
 .vite/
 *.local
