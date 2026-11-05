@@ -73,6 +73,11 @@ const routes = [
           component: () => import("@/views/admin/MarketView.vue"),
         },
         {
+          path: "notifications",
+          name: "admin-notifications",
+          component: () => import("@/views/admin/NotificationCenterView.vue"),
+        },
+        {
           path: "enterprise",
           name: "admin-enterprise",
           component: () => import("@/views/admin/EnterpriseConsoleView.vue"),

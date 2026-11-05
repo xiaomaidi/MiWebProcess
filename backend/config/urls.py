@@ -20,6 +20,7 @@ urlpatterns = [
     path("api/security/", include("core.security_urls")),
     path("api/enterprise/", include("core.enterprise_urls")),
     path("api/collab/", include("collab.urls")),
+    path("api/notifications/", include("collab.notification_urls")),
     path("api/market/", include("market.urls")),
     path("api/pages/", include("pages.urls")),
     path("", include("pages.block_urls")),

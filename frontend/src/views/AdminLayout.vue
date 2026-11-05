@@ -15,6 +15,10 @@
           <el-icon><Grid /></el-icon>
           <span>工作台 · 应用</span>
         </el-menu-item>
+        <el-menu-item index="/admin/notifications">
+          <el-icon><Bell /></el-icon>
+          <span>通知中心</span>
+        </el-menu-item>
 
         <el-sub-menu index="g-ai">
           <template #title>
@@ -145,7 +149,7 @@ import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import {
   ArrowDown, Checked, Document, Files, Finished, Grid, Key, Lock, MagicStick, Menu, Monitor,
-  OfficeBuilding, SetUp, Shop, User,
+  Bell, OfficeBuilding, SetUp, Shop, User,
 } from "@element-plus/icons-vue";
 import { useAuthStore } from "@/store/auth";
 
@@ -167,6 +171,7 @@ const pageTitle = computed(() => {
   if (path.startsWith("/admin/workflows")) return "工作流待办";
   if (path.startsWith("/admin/reviews")) return "内容审核";
   if (path.startsWith("/admin/org")) return "组织架构";
+  if (path.startsWith("/admin/notifications")) return "通知中心";
   if (path.startsWith("/admin/enterprise")) return "企业运维";
   if (path.startsWith("/admin/audit")) return "审计日志";
   if (path.startsWith("/admin/users")) return "用户管理";
@@ -187,6 +192,7 @@ const activeMenu = computed(() => {
   if (path.startsWith("/admin/workflows")) return "/admin/workflows";
   if (path.startsWith("/admin/reviews")) return "/admin/reviews";
   if (path.startsWith("/admin/org")) return "/admin/org";
+  if (path.startsWith("/admin/notifications")) return "/admin/notifications";
   if (path.startsWith("/admin/enterprise")) return "/admin/enterprise";
   if (path.startsWith("/admin/audit")) return "/admin/audit";
   if (path.startsWith("/admin/users")) return "/admin/users";

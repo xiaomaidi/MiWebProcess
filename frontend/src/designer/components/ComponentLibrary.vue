@@ -62,7 +62,7 @@ function iconOf(m: ComponentMeta): string {
 }
 
 function sourceLabel(s: ComponentSource): string {
-  return { native: "HTML", chart: "图表", rich: "富文本", advanced: "高级", legacy: "旧版", custom: "自定义", "element-plus": "EP" }[s] || s;
+  return { native: "HTML", chart: "图表", rich: "富文本", advanced: "高级", legacy: "旧版", custom: "自定义", "custom-sandbox": "沙箱", "element-plus": "EP" }[s] || s;
 }
 
 const grouped = computed<{ category: ComponentCategory; items: ComponentMeta[] }[]>(() => {

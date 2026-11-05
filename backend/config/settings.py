@@ -51,6 +51,13 @@ SECRET_KEY = _env("SECRET_KEY", "dev-insecure-secret-key-change-me")
 DEBUG = _env_bool("DEBUG", True)
 ALLOWED_HOSTS = [h.strip() for h in _env("ALLOWED_HOSTS", "*").split(",") if h.strip()]
 
+# 市场组件代码签名密钥（HMAC-SHA256）。
+# 生产环境必须单独配置 >= 32 字节随机值：MARKET_SIGNING_KEY=<random-secret>。
+# 未配置时回退到 SECRET_KEY（仅为开发兼容）：轮换 SECRET_KEY 会使历史签名失效，
+# 且 SECRET_KEY 还用于 Django 会话/CSRF，不应长期复用为签名密钥。
+# 该值不会通过任何 API 返回；修改后需对市场组件重新签名。
+MARKET_SIGNING_KEY = _env("MARKET_SIGNING_KEY", "")
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",

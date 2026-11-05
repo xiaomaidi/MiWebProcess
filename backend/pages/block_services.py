@@ -15,9 +15,12 @@ import copy
 import re
 import uuid
 
+from django.db import IntegrityError, OperationalError, ProgrammingError, transaction
+from django.db.models import Max
+from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from pages.models import Page, PageBlock
+from pages.models import Page, PageBlock, PageBlockVersion
 from pages.services import default_page_schema
 
 BLOCK_PAGE_PREFIX = "__blocks__"
@@ -338,6 +341,8 @@ def create_block(
         version=1,
         created_by=user,
     )
+    # 区块创建即产生第一个版本快照，保证版本历史从 v1 开始连续。
+    create_block_version(block, user, changelog="创建区块", force=True)
     return block, page, warnings
 
 
@@ -402,3 +407,420 @@ def rewrite_block_references(app, old_code: str, new_code: str) -> int:
             page.save(update_fields=["schema", "updated_at"])
             changed += 1
     return changed
+
+
+# ---------------------------------------------------------------------------
+# 区块版本历史（PageBlockVersion）
+# ---------------------------------------------------------------------------
+def normalize_block_snapshot(raw) -> dict:
+    """归一化版本快照，始终返回 ``{"rootId": str, "nodes": dict}`` 的深拷贝。"""
+    if not isinstance(raw, dict):
+        return {"rootId": "", "nodes": {}}
+    nodes = _node_map(raw.get("nodes"))
+    root_id = str(raw.get("rootId") or "")
+    return {"rootId": root_id, "nodes": copy.deepcopy(nodes)}
+
+
+def block_snapshot(block: PageBlock) -> dict:
+    """区块当前 schema 的版本快照（承载页面优先，回退 block.schema）。"""
+    return normalize_block_snapshot(block_schema(block))
+
+
+def latest_block_version(block: PageBlock) -> PageBlockVersion | None:
+    """最新版本快照；没有历史时返回 None。"""
+    return block.versions.order_by("-version").first()
+
+
+def _next_block_version_number(block: PageBlock) -> int:
+    current = block.versions.aggregate(peak=Max("version")).get("peak") or 0
+    return int(current) + 1
+
+
+def _snapshot_equal(left, right) -> bool:
+    return isinstance(left, dict) and isinstance(right, dict) and left == right
+
+
+def create_block_version(
+    block: PageBlock,
+    user=None,
+    changelog: str = "",
+    *,
+    snapshot: dict | None = None,
+    force: bool = True,
+) -> dict:
+    """为区块创建一个版本快照。
+
+    - ``snapshot`` 为空时取当前区块 schema（承载页面草稿优先）；
+    - ``force=False`` 且快照与最新版本完全相同时跳过（返回 reason="unchanged"）；
+    - 版本号在区块行锁内取 ``max(version)+1``，配合 unique(block, version) 防并发重复。
+
+    返回 ``{version: PageBlockVersion|None, created: bool, reason: str, snapshot: dict}``。
+    """
+    if block is None or not getattr(block, "pk", None):
+        raise ValidationError({"detail": "区块尚未保存，无法创建版本"})
+    snap = block_snapshot(block) if snapshot is None else normalize_block_snapshot(snapshot)
+    changelog = str(changelog or "")
+
+    with transaction.atomic():
+        # 锁定区块行，串行化同一区块的版本号分配。
+        locked = PageBlock.objects.select_for_update().filter(pk=block.pk).first()
+        if locked is None:
+            raise ValidationError({"detail": "区块已不存在，无法创建版本"})
+        latest = latest_block_version(block)
+        if not force and latest is not None and _snapshot_equal(latest.snapshot, snap):
+            return {"version": latest, "created": False, "reason": "unchanged", "snapshot": snap}
+        version = PageBlockVersion.objects.create(
+            block=block,
+            version=_next_block_version_number(block),
+            snapshot=snap,
+            changelog=changelog,
+            created_by=user if getattr(user, "is_authenticated", False) else None,
+        )
+    return {"version": version, "created": True, "reason": "", "snapshot": snap}
+
+
+def _empty_page_schema_like(page: Page) -> dict:
+    """恢复空画布时保留页面级 meta / variables / layout。"""
+    base = default_page_schema()
+    old = page.schema if isinstance(page.schema, dict) else {}
+    for key in ("variables", "meta", "layout"):
+        if isinstance(old.get(key), dict):
+            base[key] = copy.deepcopy(old[key])
+    return base
+
+
+def _merge_snapshot_into_page_schema(page: Page, snapshot: dict) -> dict:
+    """把 {rootId, nodes} 快照合并进承载页面 schema，保留页面级元数据。"""
+    base = copy.deepcopy(page.schema) if isinstance(page.schema, dict) and page.schema else default_page_schema()
+    base["rootId"] = snapshot["rootId"]
+    base["nodes"] = copy.deepcopy(snapshot["nodes"])
+    return base
+
+
+def rollback_block_version(
+    block: PageBlock,
+    target: PageBlockVersion,
+    user=None,
+    changelog: str = "",
+) -> dict:
+    """把指定版本快照恢复到区块的草稿（承载页面草稿或 block.schema）。
+
+    安全约定：
+    - 只写草稿，**不修改已发布的 PageVersion**；承载页面已发布时保持其
+      ``status``（公开访问仍使用已发布快照），并在 ``warnings`` 中明确提示；
+    - 回滚后自动生成一个新的版本快照，便于审计“回滚”动作。
+    """
+    if target is None or target.block_id != block.id:
+        raise ValidationError({"detail": "版本快照不属于该区块"})
+    snapshot = normalize_block_snapshot(target.snapshot)
+    page = block.page if block.page_id else None
+    warnings: list[str] = []
+    info: list[str] = []
+
+    previous_status = page.status if page is not None else None
+    was_published = previous_status == "published"
+    published_version = None
+    if page is not None:
+        current = page.current_version if page.current_version_id else None
+        if current is None and was_published:
+            current = page.versions.order_by("-version").first()
+        published_version = current.version if current is not None else None
+
+    has_snapshot = bool(snapshot["rootId"] and snapshot["rootId"] in snapshot["nodes"])
+    with transaction.atomic():
+        previous_block_version = block.version
+        block.version = int(previous_block_version or 0) + 1
+        if page is not None:
+            if has_snapshot:
+                merged = _merge_snapshot_into_page_schema(page, snapshot)
+                if not isinstance(merged.get("schemaVersion"), int):
+                    merged["schemaVersion"] = int(page.schema_version or 1)
+            else:
+                merged = _empty_page_schema_like(page)
+                warnings.append("该版本快照为空，已恢复为空画布")
+            page.schema = merged
+            page.schema_version = int(merged.get("schemaVersion") or page.schema_version or 1)
+            page.version += 1
+            # 保持原状态：已发布页面只回滚草稿，公开内容继续使用已发布快照。
+            page.save(update_fields=["schema", "schema_version", "version", "updated_at"])
+            block.save(update_fields=["version", "updated_at"])
+        else:
+            block.schema = copy.deepcopy(snapshot) if has_snapshot else {"rootId": "", "nodes": {}}
+            block.save(update_fields=["schema", "version", "updated_at"])
+
+        if was_published:
+            warnings.append(
+                f"承载页面已发布（已发布快照 v{published_version}），回滚只恢复草稿 schema；"
+                "已发布内容与公开访问保持不变，需重新发布后才会生效"
+            )
+        elif previous_status == "archived":
+            warnings.append("承载页面已归档，回滚只恢复其草稿 schema，页面仍保持归档状态")
+        if page is not None:
+            info.append(f"已恢复承载页面草稿 schema（page v{page.version}）")
+        else:
+            info.append("已恢复区块兜底 schema（无承载页面）")
+
+        created = create_block_version(
+            block,
+            user,
+            changelog=changelog or f"回滚到 v{target.version}",
+            force=False,
+        )
+
+    if created["created"]:
+        info.append(f"已生成回滚后的版本快照 v{created['version'].version}")
+    return {
+        "block": block,
+        "page": page,
+        "target": target,
+        "restored_snapshot": snapshot,
+        "previous_block_version": previous_block_version,
+        "previous_status": previous_status,
+        "page_status": page.status if page is not None else None,
+        "was_published": was_published,
+        "published_version": published_version,
+        "published_intact": was_published,
+        "new_version": created["version"],
+        "new_version_created": created["created"],
+        "warnings": warnings,
+        "info": info,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 市场发布（只依赖 market.models，不改 market 应用）
+# ---------------------------------------------------------------------------
+MARKET_BLOCK_KIND = "block"
+MARKET_STATUS_CHOICES = ("draft", "published")
+MARKET_VISIBILITY_CHOICES = ("public", "private")
+MARKET_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,99}$")
+
+
+class MarketUnavailable(RuntimeError):
+    """market 应用不可用（未安装、导入失败或数据表不可用）。"""
+
+
+def _load_market_item_model():
+    """惰性加载 market.models.MarketItem；不可用时抛 MarketUnavailable。"""
+    try:
+        from market.models import MarketItem
+    except Exception as exc:  # noqa: BLE001 - 未安装/配置错误都视为不可用
+        raise MarketUnavailable(f"market 应用不可用，无法发布区块: {type(exc).__name__}: {exc}") from exc
+    return MarketItem
+
+
+def normalize_market_slug(raw: str) -> str:
+    """把区块 code 归一化为 market 要求的 slug（小写字母/数字/连字符）。"""
+    slug = re.sub(r"[^a-z0-9-]+", "-", str(raw or "").strip().lower())
+    slug = re.sub(r"-{2,}", "-", slug).strip("-")[:100]
+    if not slug or not MARKET_SLUG_RE.match(slug):
+        raise ValidationError({"slug": "无法从 code 生成合法市场 slug，请显式传入 slug"})
+    return slug
+
+
+def _clean_market_tags(tags) -> list[str]:
+    if tags is None:
+        return []
+    if not isinstance(tags, (list, tuple)):
+        raise ValidationError({"tags": "tags 必须是数组"})
+    return [str(tag)[:40] for tag in tags if str(tag).strip()][:20]
+
+
+def _market_item_matches_block(item, block: PageBlock) -> bool:
+    """市场条目是否属于该区块（用于 create/update 幂等判定）。"""
+    payload = item.payload if isinstance(item.payload, dict) else {}
+    info = payload.get("block") if isinstance(payload.get("block"), dict) else {}
+    try:
+        block_id = int(info.get("id") or payload.get("block_id") or 0)
+    except (TypeError, ValueError):
+        block_id = 0
+    try:
+        app_id = int(info.get("app_id") or payload.get("app_id") or 0)
+    except (TypeError, ValueError):
+        app_id = 0
+    if block_id and app_id:
+        return block_id == block.id and app_id == block.app_id
+    # 兼容历史条目：source_app + code 相同也视作同一区块。
+    return bool(
+        item.source_app_id
+        and item.source_app_id == block.app_id
+        and str(payload.get("code") or "") == block.code
+    )
+
+
+def _unique_market_slug(MarketItem, base: str, block: PageBlock) -> tuple[str, object | None]:
+    """返回 (slug, 已有且属于本区块的条目)；slug 冲突时自动加序号。"""
+    slug = base
+    index = 2
+    while True:
+        item = MarketItem.objects.filter(kind=MARKET_BLOCK_KIND, slug=slug).first()
+        if item is None or _market_item_matches_block(item, block):
+            return slug, item
+        slug = f"{base[:94]}-{index}"
+        index += 1
+
+
+def _market_install_schema(snapshot: dict) -> dict:
+    """市场安装用 schema：承载页面快照取其内容子树；否则直接用快照。"""
+    nodes = snapshot.get("nodes") if isinstance(snapshot.get("nodes"), dict) else {}
+    root_id = str(snapshot.get("rootId") or "")
+    root = nodes.get(root_id) if root_id else None
+    if isinstance(root, dict) and root.get("type") == "wp-canvas":
+        subtree = extract_subtree({"rootId": root_id, "nodes": nodes})
+        if subtree.get("rootId") and subtree.get("nodes"):
+            return subtree
+    return copy.deepcopy(snapshot)
+
+
+def _market_item_payload(item) -> dict:
+    return {
+        "id": item.id,
+        "kind": item.kind,
+        "name": item.name,
+        "slug": item.slug,
+        "description": item.description,
+        "category": item.category,
+        "tags": item.tags or [],
+        "payload": item.payload or {},
+        "status": item.status,
+        "visibility": item.visibility,
+        "source_app_id": item.source_app_id,
+        "created_by_id": item.created_by_id,
+        "installs": item.installs,
+        "created_at": item.created_at.isoformat() if item.created_at else None,
+        "updated_at": item.updated_at.isoformat() if item.updated_at else None,
+    }
+
+
+def publish_block_to_market(
+    block: PageBlock,
+    user=None,
+    *,
+    name: str = "",
+    slug: str = "",
+    status: str | None = None,
+    visibility: str | None = None,
+    description: str | None = None,
+    category: str | None = None,
+    tags=None,
+    changelog: str = "",
+) -> dict:
+    """创建或更新 kind=block 的 MarketItem（按 slug 幂等）。
+
+    - payload 含安装所需 ``schema``（{rootId, nodes}）与 name/code/版本元信息；
+    - 同一区块重复发布会更新原条目（payload.block.id/app_id 匹配）；
+    - ``status`` / ``visibility`` 省略时保留条目原值（新条目默认 draft/public），
+      避免重复发布时意外下架或公开；
+    - market 不可用时抛 :class:`MarketUnavailable`。
+    """
+    MarketItem = _load_market_item_model()
+
+    status_value = str(status).strip().lower() if status not in (None, "") else None
+    if status_value is not None and status_value not in MARKET_STATUS_CHOICES:
+        raise ValidationError({"status": "status 只能是 draft 或 published"})
+    visibility_value = str(visibility).strip().lower() if visibility not in (None, "") else None
+    if visibility_value is not None and visibility_value not in MARKET_VISIBILITY_CHOICES:
+        raise ValidationError({"visibility": "visibility 只能是 public 或 private"})
+    clean_tags = _clean_market_tags(tags)
+
+    explicit_slug = bool(str(slug or "").strip())
+    base_slug = normalize_market_slug(slug or block.code)
+    snapshot = block_snapshot(block)
+    if not snapshot["rootId"] or snapshot["rootId"] not in snapshot["nodes"]:
+        raise ValidationError({"detail": "区块还没有内容（schema 为空），无法发布到市场"})
+
+    # 发布前确保当前 schema 有对应版本快照（schema 未变化时复用最新版本）。
+    version_result = create_block_version(
+        block,
+        user,
+        changelog=changelog or f"发布到市场 {base_slug}",
+        force=False,
+    )
+    version_obj = version_result["version"]
+    version_number = int(version_obj.version) if version_obj is not None else 0
+
+    final_name = str(name or block.name)[:160]
+    final_description = str(description if description is not None else block.description or "")
+    final_category = str(category or "")[:60]
+
+    try:
+        if explicit_slug:
+            # 显式 slug：被其它区块占用时明确报错，而不是静默改名。
+            item = MarketItem.objects.filter(kind=MARKET_BLOCK_KIND, slug=base_slug).first()
+            if item is not None and not _market_item_matches_block(item, block):
+                raise ValidationError(
+                    {"slug": f"市场 slug {base_slug} 已被其它条目占用，请换一个 slug"}
+                )
+            final_slug = base_slug
+        else:
+            final_slug, item = _unique_market_slug(MarketItem, base_slug, block)
+    except (ProgrammingError, OperationalError) as exc:
+        raise MarketUnavailable(f"market 数据表不可用: {type(exc).__name__}: {exc}") from exc
+
+    install_schema = _market_install_schema(version_result["snapshot"])
+    payload = {
+        "schema": install_schema,
+        "name": block.name,
+        "code": block.code,
+        "kind": MARKET_BLOCK_KIND,
+        "version": version_number,
+        "block": {
+            "id": block.id,
+            "code": block.code,
+            "app_id": block.app_id,
+            "version": version_number,
+            "block_version": int(block.version or 0),
+        },
+        "meta": {
+            "app_code": getattr(block.app, "code", "") if block.app_id else "",
+            "block_code": block.code,
+            "block_id": block.id,
+            "node_count": len(version_result["snapshot"].get("nodes") or {}),
+            "published_at": timezone.now().isoformat(),
+        },
+    }
+
+    created = item is None
+    # 省略 status/visibility 时保留条目原值；新条目默认 draft/public。
+    final_status = status_value or (
+        item.status if item is not None and item.status in MARKET_STATUS_CHOICES else "draft"
+    )
+    final_visibility = visibility_value or (
+        item.visibility if item is not None and item.visibility in MARKET_VISIBILITY_CHOICES else "public"
+    )
+    try:
+        with transaction.atomic():
+            if item is None:
+                item = MarketItem(kind=MARKET_BLOCK_KIND, slug=final_slug, created_by=user)
+            item.name = final_name
+            item.description = final_description
+            if category is not None or created:
+                item.category = final_category if category is not None else ""
+            if tags is not None or created:
+                item.tags = clean_tags
+            item.payload = payload
+            item.status = final_status
+            item.visibility = final_visibility
+            item.source_app = block.app if block.app_id else None
+            item.save()
+    except IntegrityError as exc:
+        raise ValidationError({"slug": f"市场 slug {final_slug} 已存在"}) from exc
+    except (ProgrammingError, OperationalError) as exc:
+        raise MarketUnavailable(f"market 数据表不可用: {type(exc).__name__}: {exc}") from exc
+
+    warnings: list[str] = []
+    if not version_result["created"] and version_result["reason"] == "unchanged":
+        warnings.append("当前 schema 与最新版本一致，复用最新版本快照")
+    return {
+        "item": _market_item_payload(item),
+        "item_id": item.id,
+        "created": created,
+        "updated": not created,
+        "slug": item.slug,
+        "status": item.status,
+        "visibility": item.visibility,
+        "version": version_number,
+        "block_version": int(block.version or 0),
+        "warnings": warnings,
+    }
+

@@ -89,6 +89,7 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
 import type { SchemaNode } from "@/types";
+import { api } from "@/api";
 import {
   buildBlockReferenceNode,
   createBlockFromCurrentPage,
@@ -130,6 +131,13 @@ const error = ref("");
 const blocks = ref<BlockSummary[]>([]);
 const createOpen = ref(false);
 const creating = ref(false);
+const versionsOpen = ref(false);
+const publishOpen = ref(false);
+const versionSaving = ref(false);
+const publishing = ref(false);
+const versions = ref<any[]>([]);
+const activeBlock = ref<BlockSummary | null>(null);
+const publishForm = reactive({ name: "", slug: "", description: "", status: "published" });
 const form = reactive({ name: "", code: "", description: "", insertAfterCreate: true });
 
 const selectionIds = computed(() =>
@@ -226,6 +234,60 @@ async function submitCreate() {
   } finally {
     creating.value = false;
   }
+}
+
+async function openVersions(block: BlockSummary) {
+  activeBlock.value = block;
+  versionsOpen.value = true;
+  versions.value = [];
+  try {
+    const data = await api.get<any>(`/blocks/${block.id}/versions/?size=100`);
+    versions.value = data.results || data || [];
+  } catch (e: any) { ElMessage.error(e?.message || "鍔犺浇鐗堟湰澶辫触"); }
+}
+async function loadVersions() {
+  if (!activeBlock.value) return;
+  const data = await api.get<any>(`/blocks/${activeBlock.value.id}/versions/?size=100`);
+  versions.value = data.results || data || [];
+}
+async function createVersion() {
+  if (!activeBlock.value) return;
+  versionSaving.value = true;
+  try {
+    await api.post(`/blocks/${activeBlock.value.id}/versions/`, { changelog: "manual snapshot" });
+    await loadVersions();
+    ElMessage.success("Version saved");
+  } catch (e: any) { ElMessage.error(e?.message || "Save version failed"); }
+  finally { versionSaving.value = false; }
+}
+async function rollbackVersion(row: any) {
+  if (!activeBlock.value) return;
+  try {
+    await api.post(`/blocks/${activeBlock.value.id}/versions/${row.version}/rollback/`, {});
+    await Promise.all([loadVersions(), load()]);
+    ElMessage.success(`Rolled back to v${row.version}`);
+  } catch (e: any) { ElMessage.error(e?.message || "Rollback failed"); }
+}
+
+function openPublish(block: BlockSummary) {
+  activeBlock.value = block;
+  publishForm.name = block.name;
+  publishForm.slug = block.code;
+  publishForm.description = block.description || "";
+  publishForm.status = "published";
+  publishOpen.value = true;
+}
+async function publishToMarket() {
+  if (!activeBlock.value) return;
+  publishing.value = true;
+  try {
+    await api.post(`/blocks/${activeBlock.value.id}/publish-market/`, {
+      name: publishForm.name, slug: publishForm.slug, description: publishForm.description, status: publishForm.status,
+    });
+    publishOpen.value = false;
+    ElMessage.success("宸插彂甯冨埌甯傚満");
+  } catch (e: any) { ElMessage.error(e?.message || "鍙戝竷澶辫触"); }
+  finally { publishing.value = false; }
 }
 
 onMounted(() => {

@@ -80,14 +80,35 @@ class PageBlockDetailSerializer(PageBlockSerializer):
     root_id = serializers.SerializerMethodField()
     node_count = serializers.SerializerMethodField()
     backing_page = serializers.SerializerMethodField()
+    latest_version = serializers.SerializerMethodField()
+    version_count = serializers.SerializerMethodField()
+    latest_version_detail = serializers.SerializerMethodField()
 
     class Meta(PageBlockSerializer.Meta):
-        fields = PageBlockSerializer.Meta.fields + ("schema", "root_id", "node_count", "backing_page")
+        fields = PageBlockSerializer.Meta.fields + (
+            "schema",
+            "root_id",
+            "node_count",
+            "backing_page",
+            "latest_version",
+            "version_count",
+            "latest_version_detail",
+        )
 
     def _schema(self, obj) -> dict:
         from pages.block_services import block_schema
 
         return block_schema(obj)
+
+    def _latest(self, obj):
+        latest = getattr(obj, "_wp_latest_block_version", None)
+        if latest is None:
+            latest = obj.versions.order_by("-version").first()
+            try:
+                obj._wp_latest_block_version = latest
+            except Exception:
+                pass
+        return latest
 
     def get_schema(self, obj) -> dict:
         if not self.context.get("include_schema", True):
@@ -112,6 +133,46 @@ class PageBlockDetailSerializer(PageBlockSerializer):
             "status": page.status,
             "version": page.version,
         }
+
+    def get_latest_version(self, obj) -> int:
+        """最新版本号（没有历史时为 0），与 ``version_count`` 一起供区块详情展示。"""
+        latest = self._latest(obj)
+        return int(latest.version) if latest is not None else 0
+
+    def get_version_count(self, obj) -> int:
+        count = obj.versions.count()
+        return int(count)
+
+    def get_latest_version_detail(self, obj) -> dict | None:
+        latest = self._latest(obj)
+        return PageBlockVersionSerializer(latest).data if latest is not None else None
+
+
+class PageBlockVersionSerializer(serializers.ModelSerializer):
+    """区块版本快照（详情含 snapshot；列表按需使用同一序列化器）。"""
+
+    block_id = serializers.IntegerField(read_only=True)
+    created_by_id = serializers.IntegerField(source="created_by.id", read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        from pages.models import PageBlockVersion
+
+        model = PageBlockVersion
+        fields = (
+            "id",
+            "block_id",
+            "version",
+            "snapshot",
+            "changelog",
+            "created_by_id",
+            "created_by_name",
+            "created_at",
+        )
+        read_only_fields = fields
+
+    def get_created_by_name(self, obj) -> str:
+        return obj.created_by.username if obj.created_by_id and obj.created_by else ""
 
 
 class AssetSerializer(serializers.ModelSerializer):

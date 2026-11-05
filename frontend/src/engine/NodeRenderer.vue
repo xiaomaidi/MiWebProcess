@@ -5,6 +5,8 @@
       <template v-for="child in childrenList" :key="child.id">
         <NodeRenderer :node="child" :nodes="nodes" :mode="mode" :loop-item="loopItem" :loop-name="loopName" :loop-index="loopIndex" />
       </template>
+      <!-- 设计态：他人实时锁定的节点徽章/描边（只读覆盖层，不参与交互） -->
+      <NodeLockOverlay v-if="mode === 'design'" />
     </div>
 
     <!-- 通用循环（dataBinding） -->
@@ -83,7 +85,15 @@
       @dragstart.stop="onNodeDragStart"
       @click="onNodeClick"
     >
-      <component :is="comp" v-if="comp" ref="compRef" v-bind="elementProps" :wp-node-id="node.id" :data-motion="node.motion || undefined" :wp-mode="mode" v-on="eventHandlers">
+      <SandboxedComponent
+        v-if="isSandboxed"
+        :source-url="meta?.source_url || ''"
+        :element="meta?.element || ''"
+        :component-props="elementProps"
+        :title="meta?.label || node.type"
+        @event="onSandboxEvent"
+      />
+      <component v-else-if="comp" :is="comp" ref="compRef" v-bind="elementProps" :wp-node-id="node.id" :data-motion="node.motion || undefined" :wp-mode="mode" v-on="eventHandlers">
         <template v-for="(children, slotName) in namedSlotNodes" :key="slotName" #[slotName]>
           <NodeRenderer
             v-for="child in children"
@@ -133,6 +143,8 @@ import { useComponentStore } from "@/store/component";
 import { useSchemaStore } from "@/store/schema";
 import { COMPOSITE_CHILDREN, getElementComponent, getElementIcon, TEXT_SLOT_ELEMENTS } from "./element-components";
 import { remoteComponentFor } from "./remote-component";
+import NodeLockOverlay from "@/designer/components/NodeLockOverlay.vue";
+import SandboxedComponent from "@/components/market/SandboxedComponent.vue";
 import { isBindingValue, resolveProps, resolveLoopItems, buildScope } from "./binding";
 import { evaluateExpression, interpolate } from "./expr";
 import { runSteps } from "./actions";
@@ -177,6 +189,12 @@ const design = inject<DesignCtx | null>("wp.design", null);
 const scope = inject<RuntimeScope | null>("wp.scope", null);
 
 const meta = computed<ComponentMeta | undefined>(() => components.meta(node.value.type));
+const isSandboxed = computed(() => !!meta.value && meta.value.source === "custom-sandbox" && !!meta.value.source_url && !!meta.value.element);
+function onSandboxEvent(payload: { name: string; detail: unknown }) {
+  if (mode.value !== "runtime") return;
+  const handler = eventHandlers.value?.[payload?.name];
+  if (typeof handler === "function") handler(payload.detail);
+}
 
 const isCanvas = computed(() => node.value.type === "wp-canvas");
 const hasLayout = computed(() => node.value.layout != null);

@@ -15,9 +15,9 @@ from rest_framework.response import Response
 from appcore.models import NotificationLog
 from core.permissions import get_app_role
 from pages.models import Page
-from wp_utils import broadcast_to_app, require_app_role
+from wp_utils import broadcast_to_app, paginate_items, require_app_role
 
-from .models import PageComment
+from .models import DELETED_COMMENT_BODY, MAX_COMMENT_BODY, MAX_COMMENT_DEPTH, PageComment
 
 User = get_user_model()
 
@@ -31,6 +31,9 @@ MAX_MENTIONS = 50
 NOTIFY_EXCERPT = 1000
 
 COMMENT_EVENT_TOPIC = "designer-comments/{page_id}"
+
+# 列表接口硬上限（评论列表不分页，避免单页评论无限增长）。
+MAX_COMMENTS_PER_PAGE = 500
 
 
 def _clean_mentions(value) -> list[dict]:
@@ -61,17 +64,28 @@ def _clean_mentions(value) -> list[dict]:
     return rows
 
 
-def _payload(item: PageComment, warnings: list[dict] | None = None) -> dict:
+def _payload(
+    item: PageComment,
+    warnings: list[dict] | None = None,
+    resolved_reply_ids: list[int] | None = None,
+) -> dict:
     mentions = _clean_mentions(item.mentions)
+    body = DELETED_COMMENT_BODY if item.deleted else item.body
     data = {
         "id": item.id,
         "page_id": item.page_id,
         "node_id": item.node_id,
-        "body": item.body,
+        "body": body,
         "mentions": mentions,
         "mention_usernames": [m["username"] for m in mentions],
         "author": item.author.username if item.author else "",
         "author_id": item.author_id,
+        "parent_id": item.parent_id,
+        "root_id": item.thread_root_id,
+        "depth": item.depth,
+        "is_reply": item.is_reply,
+        "deleted": item.deleted,
+        "deleted_at": item.deleted_at.isoformat() if item.deleted_at else None,
         "resolved": item.resolved,
         "resolved_by": item.resolved_by.username if item.resolved_by else "",
         "created_at": item.created_at.isoformat() if item.created_at else None,
@@ -79,6 +93,8 @@ def _payload(item: PageComment, warnings: list[dict] | None = None) -> dict:
     }
     if warnings:
         data["warnings"] = warnings
+    if resolved_reply_ids:
+        data["resolved_reply_ids"] = list(resolved_reply_ids)
     return data
 
 
@@ -197,7 +213,10 @@ def _notify_mentions(item: PageComment, mentions: list[dict], actor) -> int:
         recipients.append(mention)
     if not recipients:
         return 0
-    subject = f"{author_name} 在页面「{page_name}」的评论中提到了你"[:240]
+    if item.parent_id:
+        subject = f"{author_name} 在页面「{page_name}」的回复中提到了你"[:240]
+    else:
+        subject = f"{author_name} 在页面「{page_name}」的评论中提到了你"[:240]
     excerpt = (item.body or "")[:NOTIFY_EXCERPT]
     content = f"{author_name}：{excerpt}"[:NOTIFY_EXCERPT + 40]
     base_payload = {
@@ -206,6 +225,9 @@ def _notify_mentions(item: PageComment, mentions: list[dict], actor) -> int:
         "page_id": item.page_id,
         "page_name": page_name,
         "comment_id": item.id,
+        "parent_id": item.parent_id,
+        "root_id": item.thread_root_id,
+        "is_reply": item.is_reply,
         "node_id": item.node_id,
         "author": author_name,
         "author_id": getattr(actor, "id", None) if actor else None,
@@ -267,6 +289,27 @@ def _broadcast_comment(event_type: str, *, app_id: int, page_id: int, comment: d
     )
 
 
+def _parse_parent(request, page: Page) -> PageComment | None:
+    """解析并校验 parent_id：必须同页、未删除，且不超过最大线程层级。"""
+    raw = request.data.get("parent_id")
+    if raw in (None, "", 0, "0"):
+        return None
+    try:
+        parent_id = int(raw)
+    except (TypeError, ValueError):
+        raise ValidationError({"parent_id": "父评论 ID 无效"})
+    parent = PageComment.objects.select_related("page").filter(pk=parent_id).first()
+    if parent is None:
+        raise ValidationError({"parent_id": "父评论不存在"})
+    if parent.page_id != page.id:
+        raise ValidationError({"parent_id": "父评论不属于当前页面"})
+    if parent.deleted:
+        raise ValidationError({"parent_id": "不能回复已删除的评论"})
+    if parent.depth + 1 >= MAX_COMMENT_DEPTH:
+        raise ValidationError({"parent_id": f"回复层级最多 {MAX_COMMENT_DEPTH} 层"})
+    return parent
+
+
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def page_comments(request, page_id: int):
@@ -276,16 +319,29 @@ def page_comments(request, page_id: int):
         qs = page.comments.select_related("author", "resolved_by").all()
         if request.query_params.get("resolved") in ("0", "false"):
             qs = qs.filter(resolved=False)
-        return Response({"results": [_payload(item) for item in qs[:200]]})
+        # 默认按创建时间倒序（沿用旧契约）；前端按 parent_id 组装线程。
+        # 已删除的评论仍需返回：回复树要保留占位节点。
+        rows = qs[:MAX_COMMENTS_PER_PAGE]
+        return Response({"results": [_payload(item) for item in rows]})
+
     body = str(request.data.get("body") or "").strip()
     if not body:
         raise ValidationError({"detail": "评论内容不能为空"})
-    if len(body) > 4000:
-        raise ValidationError({"detail": "评论不能超过 4000 字"})
+    if len(body) > MAX_COMMENT_BODY:
+        raise ValidationError({"detail": f"评论不能超过 {MAX_COMMENT_BODY} 字"})
+    parent = _parse_parent(request, page)
+    raw_node = request.data.get("node_id")
+    if raw_node is None and parent is not None:
+        node_id = parent.node_id
+    else:
+        node_id = str(raw_node or "")[:120]
     mentions, warnings = _resolve_mentions(body, page.app)
     item = PageComment.objects.create(
         app=page.app, page=page,
-        node_id=str(request.data.get("node_id") or "")[:120],
+        parent=parent,
+        root_id=((parent.root_id or parent.id) if parent is not None else None),
+        depth=(parent.depth + 1) if parent is not None else 0,
+        node_id=node_id,
         body=body, author=request.user, mentions=mentions,
     )
     notified = _notify_mentions(item, mentions, request.user)
@@ -310,17 +366,30 @@ def comment_detail(request, pk: int):
     if request.method == "DELETE":
         if item.author_id != request.user.id:
             require_app_role(request.user, item.page.app, "editor")
-        snapshot = _payload(item)
-        app_id, page_id = item.app_id, item.page_id
-        item.delete()
+        # 已删除的评论再次删除：幂等，避免前端重试报错。
+        if item.deleted:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        # 软删除：保留回复树，只把正文置为占位符并打删除标记。
+        item.deleted = True
+        item.deleted_at = timezone.now()
+        item.body = DELETED_COMMENT_BODY
+        item.mentions = []
+        item.save(update_fields=[
+            "deleted", "deleted_at", "body", "mentions", "updated_at",
+        ])
         _broadcast_comment(
-            "comment_deleted",
-            app_id=app_id,
-            page_id=page_id,
-            comment=snapshot,
+            "comment_updated",
+            app_id=item.app_id,
+            page_id=item.page_id,
+            comment=_payload(item),
             actor=request.user,
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    if item.deleted:
+        raise ValidationError({"detail": "评论已删除，无法修改"})
+    if "parent_id" in request.data:
+        raise ValidationError({"parent_id": "不支持修改父评论"})
 
     # 正文/节点修改需要作者本人或编辑权限；解决/重新打开沿用原有 viewer 权限。
     edited = "body" in request.data or "node_id" in request.data
@@ -334,7 +403,7 @@ def comment_detail(request, pk: int):
         body = str(request.data.get("body") or "").strip()
         if not body:
             raise ValidationError({"detail": "评论内容不能为空"})
-        item.body = body[:4000]
+        item.body = body[:MAX_COMMENT_BODY]
         mentions, warnings = _resolve_mentions(item.body, item.page.app)
         item.mentions = mentions
     if "resolved" in request.data:
@@ -345,11 +414,27 @@ def comment_detail(request, pk: int):
         item.node_id = str(request.data.get("node_id") or "")[:120]
     item.save()
 
+    # 解决/重新打开根评论时整条线程一起流转（子回复通过 root_id 关联）。
+    resolved_reply_ids: list[int] = []
+    if "resolved" in request.data and item.parent_id is None:
+        descendants = PageComment.objects.filter(root_id=item.id)
+        now = timezone.now()
+        if item.resolved:
+            resolved_reply_ids = list(
+                descendants.filter(resolved=False).values_list("id", flat=True)
+            )
+            descendants.update(resolved=True, resolved_by=request.user, resolved_at=now)
+        else:
+            resolved_reply_ids = list(
+                descendants.filter(resolved=True).values_list("id", flat=True)
+            )
+            descendants.update(resolved=False, resolved_by=None, resolved_at=None)
+
     notified = 0
     if body_changed:
         newly = [m for m in _clean_mentions(item.mentions) if m["username"] not in previous]
         notified = _notify_mentions(item, newly, request.user)
-    response_payload = _payload(item, warnings)
+    response_payload = _payload(item, warnings, resolved_reply_ids or None)
     if notified:
         response_payload["notified_count"] = notified
     event_type = "comment_updated"
@@ -359,7 +444,105 @@ def comment_detail(request, pk: int):
         event_type,
         app_id=item.app_id,
         page_id=item.page_id,
-        comment=_payload(item),
+        comment=_payload(item, resolved_reply_ids=resolved_reply_ids or None),
         actor=request.user,
     )
     return Response(response_payload)
+
+
+# --------------------------------------------------------------------------- 通知中心
+def _notification_payload(item: NotificationLog) -> dict:
+    """站内信序列化：只暴露收件人自己的内容与已存储的业务元数据。"""
+    extra = item.payload if isinstance(item.payload, dict) else {}
+    app = item.app
+    return {
+        "id": item.id,
+        "channel": item.channel,
+        "kind": extra.get("kind") or "",
+        "subject": item.subject,
+        "content": item.content,
+        "status": item.status,
+        "app_id": item.app_id,
+        "app_name": getattr(app, "name", "") if app is not None else "",
+        "page_id": extra.get("page_id"),
+        "page_name": extra.get("page_name") or "",
+        "comment_id": extra.get("comment_id"),
+        "parent_id": extra.get("parent_id"),
+        "root_id": extra.get("root_id"),
+        "is_reply": bool(extra.get("is_reply")),
+        "node_id": extra.get("node_id") or "",
+        "author": extra.get("author") or "",
+        "body": extra.get("body") or "",
+        "mention_username": extra.get("mention_username") or "",
+        "is_read": item.read_at is not None,
+        "read_at": item.read_at.isoformat() if item.read_at else None,
+        "created_at": item.created_at.isoformat() if item.created_at else None,
+    }
+
+
+def _own_notifications(user):
+    """只返回 recipient 精确等于当前用户名的站内信（不含空 recipient 广播）。"""
+    return NotificationLog.objects.filter(
+        recipient=user.username
+    ).select_related("app")
+
+
+def _as_int(value, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _truthy(value) -> bool:
+    return str(value or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def notifications_feed(request):
+    """GET /api/notifications/?unread=1&page=1&size=20 — 当前用户的站内信。"""
+    qs = _own_notifications(request.user)
+    unread_count = qs.filter(read_at__isnull=True).count()
+
+    app_id = _as_int(request.query_params.get("app_id"), 0)
+    if app_id > 0:
+        qs = qs.filter(app_id=app_id)
+    if _truthy(request.query_params.get("unread")):
+        qs = qs.filter(read_at__isnull=True)
+    kind = str(request.query_params.get("kind") or "").strip()
+    if kind:
+        qs = qs.filter(payload__kind=kind)
+    qs = qs.order_by("-created_at", "-id")
+
+    response = paginate_items(request, qs, _notification_payload)
+    response.data["unread_count"] = unread_count
+    return response
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def notification_read(request, pk: int):
+    """POST /api/notifications/{id}/read/ — 标记单条已读（只能操作自己的）。"""
+    # 用 404 而不是 403，避免泄露“他人是否存在该通知”。
+    item = get_object_or_404(_own_notifications(request.user), pk=pk)
+    if item.read_at is None:
+        item.read_at = timezone.now()
+        item.save(update_fields=["read_at"])
+    return Response(_notification_payload(item))
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def notifications_read_all(request):
+    """POST /api/notifications/read-all/ — 当前用户全部未读置为已读。"""
+    qs = _own_notifications(request.user).filter(read_at__isnull=True)
+    try:
+        app_id = _as_int(request.data.get("app_id"), 0)
+    except AttributeError:  # pragma: no cover - 非对象 body
+        app_id = 0
+    if app_id > 0:
+        qs = qs.filter(app_id=app_id)
+    updated = qs.update(read_at=timezone.now())
+    remaining = _own_notifications(request.user).filter(read_at__isnull=True).count()
+    return Response({"updated": updated, "unread_count": remaining})

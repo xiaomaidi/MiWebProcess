@@ -14,7 +14,7 @@ export type ComponentType =
   | "business";
 
 /** 组件实现来源：Element Plus / 原生标签 / 图表 / 富文本 / 旧版内置 / 自定义。 */
-export type ComponentSource = "element-plus" | "native" | "chart" | "rich" | "advanced" | "legacy" | "custom";
+export type ComponentSource = "element-plus" | "native" | "chart" | "rich" | "advanced" | "legacy" | "custom" | "custom-sandbox";
 
 export interface ComponentCategory {
   key: string;

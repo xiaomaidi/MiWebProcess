@@ -7,6 +7,9 @@
  * - 最多 100 条动作，另有单快照 / 总内存 / 会话体积三级保护；
  * - 回放优先交给接入方回调（onApply），未提供时回退为 schema store 安全赋值，
  *   不使用 setSchema（避免重置 pageId / appId / 选中 / dirty）；可选 setSchema 模式；
+ * - 回放与撤销历史集成：回放开始记录 schema / 历史栈状态，整次回放合并为一条历史命令
+ *   （`replayHistoryMode: "single"`，默认），`"none"` 保持旧行为；中途停止按「部分结果」提交，
+ *   一步未应用则保持不变。详见 recorder-history.ts；
  * - 所有 window / sessionStorage 访问都有守卫，SSR 下安全。
  *
  * 接入方式（推荐）：
@@ -25,6 +28,34 @@ import type { PageSchema } from "@/types";
 import { useHistoryStore } from "@/store/history";
 import { useSchemaStore } from "@/store/schema";
 import { deepClone } from "@/utils";
+import {
+  DEFAULT_REPLAY_HISTORY_MODE,
+  captureReplayHistory,
+  commitReplayHistory,
+  markReplayApplied,
+  normalizeReplayHistoryMode,
+  type ReplayHistoryCapture,
+  type ReplayHistoryCommitResult,
+  type ReplayHistoryMode,
+  type RecorderHistoryCommandLike,
+  type RecorderHistoryStoreLike,
+} from "./recorder-history";
+
+export {
+  DEFAULT_REPLAY_HISTORY_MODE,
+  REPLAY_HISTORY_MODES,
+  buildReplayHistoryLabel,
+  normalizeReplayHistoryMode,
+} from "./recorder-history";
+export type {
+  ReplayHistoryCapture,
+  ReplayHistoryCommitResult,
+  ReplayHistoryMode,
+  ReplayHistorySkipReason,
+  ReplayHistoryStateSnapshot,
+  RecorderHistoryCommandLike,
+  RecorderHistoryStoreLike,
+} from "./recorder-history";
 
 // ---------------------------------------------------------------------------
 // 常量与类型
@@ -118,6 +149,8 @@ export interface ReplayOptions {
   onApply?: (schema: PageSchema, action: RecordedAction) => void | Promise<void>;
   /** 默认 assign（保留历史栈）；setSchema 会重置选中 / pageId / dirty。 */
   applyMode?: "assign" | "setSchema";
+  /** 本次回放的历史写入模式；缺省读引擎配置（默认 "single"）。 */
+  replayHistoryMode?: ReplayHistoryMode;
 }
 
 /** 只依赖 schema store 的稳定子集（便于测试 / SSR 注入）。 */
@@ -135,21 +168,6 @@ export interface RecorderSchemaStoreLike {
   setSchema?: (schema: PageSchema | null, pageId?: number, appId?: number) => void;
   select?: (id: string | null, additive?: boolean) => void;
   selectMany?: (ids: string[]) => void;
-}
-
-export interface RecorderHistoryCommandLike {
-  label?: string;
-  before?: unknown;
-  after?: unknown;
-}
-
-export interface RecorderHistoryStoreLike {
-  $subscribe?: (
-    callback: (mutation: { type?: string }, state: unknown) => void,
-    options?: { detached?: boolean; deep?: boolean }
-  ) => () => void;
-  stack?: RecorderHistoryCommandLike[];
-  future?: RecorderHistoryCommandLike[];
 }
 
 export interface ActionRecorderOptions {
@@ -173,6 +191,17 @@ export interface ActionRecorderOptions {
   onApply?: (schema: PageSchema, action: RecordedAction) => void | Promise<void>;
   /** 每记录一条动作回调（可用于自动保存 / 埋点）。 */
   onRecord?: (action: RecordedAction) => void;
+  /**
+   * 回放结果写入撤销历史的模式：
+   * - "single"（默认）整次回放合并为一条命令；
+   * - "none" 不写历史（兼容接入前的旧行为）。
+   */
+  replayHistoryMode?: ReplayHistoryMode;
+  /**
+   * 历史 store 不支持 `push(label, before, after)` 时的兜底回调。
+   * 返回 false 表示放弃写入；不提供则跳过写历史（回放本身不受影响）。
+   */
+  onPushHistory?: (label: string, before: PageSchema, after: PageSchema) => boolean | void;
 }
 
 // ---------------------------------------------------------------------------
@@ -388,6 +417,10 @@ export const recorderReplaySpeed = ref(RECORDER_SPEED_DEFAULT);
 export const recorderMemoryBytes = ref(0);
 export const recorderDropped = ref(0);
 export const recorderLastError = ref("");
+/** 当前回放历史写入模式（面板 / 接入方可读；也可用 handle.setReplayHistoryMode 修改）。 */
+export const recorderReplayHistoryMode = ref<ReplayHistoryMode>(DEFAULT_REPLAY_HISTORY_MODE);
+/** 最近一次回放（含 jumpTo）的历史提交结果；null 表示尚未发生。 */
+export const recorderLastReplayHistory = shallowRef<ReplayHistoryCommitResult | null>(null);
 
 // ---------------------------------------------------------------------------
 // 引擎
@@ -406,6 +439,8 @@ interface NormalizedOptions {
   applyMode: "assign" | "setSchema";
   onApply?: (schema: PageSchema, action: RecordedAction) => void | Promise<void>;
   onRecord?: (action: RecordedAction) => void;
+  replayHistoryMode: ReplayHistoryMode;
+  onPushHistory?: (label: string, before: PageSchema, after: PageSchema) => boolean | void;
 }
 
 function normalizeOptions(options: ActionRecorderOptions): NormalizedOptions {
@@ -432,6 +467,8 @@ function normalizeOptions(options: ActionRecorderOptions): NormalizedOptions {
     applyMode: options.applyMode === "setSchema" ? "setSchema" : "assign",
     onApply: options.onApply,
     onRecord: options.onRecord,
+    replayHistoryMode: normalizeReplayHistoryMode(options.replayHistoryMode),
+    onPushHistory: options.onPushHistory,
   };
 }
 
@@ -487,9 +524,12 @@ class RecorderEngine {
   private replayToken = 0;
   private statusBeforeReplay: RecorderStatus = "idle";
   private pauseWaiters: Array<() => void> = [];
+  /** 当前回放的「历史合并」会话；回放结束 / 中止时提交一次。 */
+  private replayHistory: ReplayHistoryCapture | null = null;
 
   constructor(options: ActionRecorderOptions = {}) {
     this.options = normalizeOptions(options);
+    recorderReplayHistoryMode.value = this.options.replayHistoryMode;
     this.refreshStores();
   }
 
@@ -530,6 +570,11 @@ class RecorderEngine {
     if (options.applyMode) this.options.applyMode = options.applyMode === "setSchema" ? "setSchema" : "assign";
     if (options.onApply !== undefined) this.options.onApply = options.onApply;
     if (options.onRecord !== undefined) this.options.onRecord = options.onRecord;
+    if (options.replayHistoryMode !== undefined) {
+      this.options.replayHistoryMode = normalizeReplayHistoryMode(options.replayHistoryMode);
+      recorderReplayHistoryMode.value = this.options.replayHistoryMode;
+    }
+    if (options.onPushHistory !== undefined) this.options.onPushHistory = options.onPushHistory;
     this.refreshStores();
   }
 
@@ -541,6 +586,8 @@ class RecorderEngine {
       replayPaused: recorderReplayPaused,
       replayIndex: recorderReplayIndex,
       replaySpeed: recorderReplaySpeed,
+      replayHistoryMode: recorderReplayHistoryMode,
+      lastReplayHistory: recorderLastReplayHistory,
       memoryBytes: recorderMemoryBytes,
       dropped: recorderDropped,
       lastError: recorderLastError,
@@ -550,12 +597,13 @@ class RecorderEngine {
       stop: () => engine.stop(),
       clear: () => engine.clear(),
       capture: (label?: string) => engine.capture(label),
-      jumpTo: (index: number) => engine.jumpTo(index),
+      jumpTo: (index: number, options?: ReplayOptions) => engine.jumpTo(index, options),
       play: (options?: ReplayOptions) => engine.startReplay(options),
       pauseReplay: () => engine.pauseReplay(),
       resumeReplay: () => engine.resumeReplay(),
       stopReplay: () => engine.stopReplay(),
       setReplaySpeed: (ms: number) => engine.setReplaySpeed(ms),
+      setReplayHistoryMode: (mode: ReplayHistoryMode) => engine.setReplayHistoryMode(mode),
       exportJson: (pretty = true) => engine.exportJson(pretty),
       exportPayload: () => engine.exportPayload(),
       importJson: (input: string | unknown) => engine.importJson(input),
@@ -1035,7 +1083,15 @@ class RecorderEngine {
     return speed;
   }
 
-  async jumpTo(index: number): Promise<boolean> {
+  /** 修改默认回放历史模式（"single" 合并为一条命令 / "none" 不写历史）。 */
+  setReplayHistoryMode(mode: ReplayHistoryMode): ReplayHistoryMode {
+    const normalized = normalizeReplayHistoryMode(mode);
+    this.options.replayHistoryMode = normalized;
+    recorderReplayHistoryMode.value = normalized;
+    return normalized;
+  }
+
+  async jumpTo(index: number, options: ReplayOptions = {}): Promise<boolean> {
     const action = recorderActions.value[index];
     if (!action) {
       recorderLastError.value = "快照不存在";
@@ -1046,8 +1102,12 @@ class RecorderEngine {
       return false;
     }
     if (this.replaying) this.stopReplay();
+    // 单次跳转 = 一条历史命令（仍不改变 startReplay 的「整次回放一条」语义）。
+    const capture = this.captureReplayHistoryFor(options.replayHistoryMode);
     try {
-      await this.applySnapshot(action.after, action, {});
+      await this.applySnapshot(action.after, action, options);
+      markReplayApplied(capture, action.after, action.label);
+      this.commitReplayHistoryCapture(capture, false);
       recorderReplayIndex.value = index;
       recorderLastError.value = "";
       this.resetBaselineFromCurrent();
@@ -1075,6 +1135,8 @@ class RecorderEngine {
           : recorderStatus.value === "recording"
             ? "recording"
             : "idle";
+    // 在应用任何快照之前抓取 schema / 历史栈状态，作为唯一一条历史命令的 before。
+    this.replayHistory = this.captureReplayHistoryFor(options.replayHistoryMode);
     this.replaying = true;
     recorderReplayPaused.value = false;
     recorderStatus.value = "replaying";
@@ -1090,6 +1152,8 @@ class RecorderEngine {
         const action = actions[i];
         if (action.after) {
           await this.applySnapshot(action.after, action, options);
+          // 只累计成功应用的快照；不在这里写历史（整次回放最后只 push 一次）。
+          markReplayApplied(this.replayHistory, action.after, action.label);
         }
         recorderReplayIndex.value = i;
         if (i < actions.length - 1) {
@@ -1102,6 +1166,7 @@ class RecorderEngine {
     } catch (error) {
       if (token !== this.replayToken) return;
       recorderLastError.value = error instanceof Error ? error.message : String(error);
+      // 中止：已应用的快照合并为一条命令（部分结果），未应用则保持原状。
       this.stopReplay();
     }
   }
@@ -1120,9 +1185,12 @@ class RecorderEngine {
   stopReplay(): void {
     if (!this.replaying) {
       recorderReplayPaused.value = false;
+      this.replayHistory = null;
       return;
     }
     this.replayToken += 1;
+    // 中止也提交一次：before=回放前，after=中止瞬间（部分结果）；0 步时不提交。
+    this.commitActiveReplayHistory(true);
     this.replaying = false;
     recorderReplayPaused.value = false;
     for (const resolve of this.pauseWaiters.splice(0)) resolve();
@@ -1131,11 +1199,57 @@ class RecorderEngine {
   }
 
   private finishReplay(): void {
+    // 正常结束：整次回放合并为一条历史命令。
+    this.commitActiveReplayHistory(false);
     this.replaying = false;
     recorderReplayPaused.value = false;
     for (const resolve of this.pauseWaiters.splice(0)) resolve();
     recorderStatus.value = this.statusBeforeReplay;
     this.resetBaselineFromCurrent();
+  }
+
+  /** 回放开始时抓取当前 schema 与历史栈状态（mode 缺省取引擎配置）。 */
+  private captureReplayHistoryFor(modeInput?: ReplayHistoryMode): ReplayHistoryCapture {
+    const capture = captureReplayHistory({
+      mode: normalizeReplayHistoryMode(modeInput ?? this.options.replayHistoryMode),
+      schema: this.schemaSnapshotForHistory(),
+      historyStore: this.historyStore,
+    });
+    recorderLastReplayHistory.value = null;
+    return capture;
+  }
+
+  private schemaSnapshotForHistory(): PageSchema | null {
+    const schema = this.schemaStore?.schema;
+    if (!schema) return null;
+    try {
+      return deepClone(schema);
+    } catch {
+      return null;
+    }
+  }
+
+  private commitReplayHistoryCapture(capture: ReplayHistoryCapture, aborted: boolean): void {
+    const result = commitReplayHistory({
+      capture,
+      resultSchema: this.schemaSnapshotForHistory(),
+      historyStore: this.historyStore,
+      onPush: this.options.onPushHistory,
+      aborted,
+    });
+    recorderLastReplayHistory.value = result;
+    if (result.pushed) {
+      // 立即把 lastStack/lastFuture 同步到 push 后的状态，避免 recorder 把自己的
+      // 回放命令当成一条新动作再录一遍（history watch 是异步 flush 的）。
+      this.syncHistory();
+    }
+  }
+
+  private commitActiveReplayHistory(aborted: boolean): void {
+    const capture = this.replayHistory;
+    this.replayHistory = null;
+    if (!capture) return;
+    this.commitReplayHistoryCapture(capture, aborted);
   }
 
   private async waitWhilePaused(token: number): Promise<void> {
@@ -1460,6 +1574,8 @@ export interface ActionRecorderHandle {
   replayPaused: typeof recorderReplayPaused;
   replayIndex: typeof recorderReplayIndex;
   replaySpeed: typeof recorderReplaySpeed;
+  replayHistoryMode: typeof recorderReplayHistoryMode;
+  lastReplayHistory: typeof recorderLastReplayHistory;
   memoryBytes: typeof recorderMemoryBytes;
   dropped: typeof recorderDropped;
   lastError: typeof recorderLastError;
@@ -1469,12 +1585,13 @@ export interface ActionRecorderHandle {
   stop: () => void;
   clear: () => void;
   capture: (label?: string) => boolean;
-  jumpTo: (index: number) => Promise<boolean>;
+  jumpTo: (index: number, options?: ReplayOptions) => Promise<boolean>;
   play: (options?: ReplayOptions) => Promise<void>;
   pauseReplay: () => void;
   resumeReplay: () => void;
   stopReplay: () => void;
   setReplaySpeed: (ms: number) => number;
+  setReplayHistoryMode: (mode: ReplayHistoryMode) => ReplayHistoryMode;
   exportJson: (pretty?: boolean) => string;
   exportPayload: () => RecorderExport;
   importJson: (input: string | unknown) => ImportResult;

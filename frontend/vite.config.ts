@@ -8,7 +8,21 @@ const rootDir = new URL(".", metaUrl).pathname.slice(1);
 const projectDir = new URL("../", metaUrl).pathname.slice(1);
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [
+    vue(),
+    {
+      name: "market-sandbox-cors",
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          const url = (req as any).url as string | undefined;
+          if (url && url.startsWith("/market-demo")) {
+            res.setHeader("Access-Control-Allow-Origin", "*");
+          }
+          next();
+        });
+      },
+    },
+  ],
   resolve: {
     alias: {
       "@": new URL("./src", metaUrl).pathname.slice(1),

@@ -104,6 +104,32 @@ class PageBlock(models.Model):
         return f"{self.app_id}/{self.code}"
 
 
+class PageBlockVersion(models.Model):
+    """区块版本快照（不可变）。
+
+    ``snapshot`` 只保存节点子树 ``{"rootId": str, "nodes": {id: node}}``；页面级
+    ``meta`` / ``layout`` / ``variables`` 等不属于区块内容，回滚时以承载页面当前
+    的同名元数据为基底合并，避免丢失页面设置。
+    """
+
+    block = models.ForeignKey(PageBlock, on_delete=models.CASCADE, related_name="versions")
+    version = models.IntegerField()
+    snapshot = models.JSONField(default=dict, blank=True)
+    changelog = models.TextField(blank=True, default="")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "wp_page_block_versions"
+        ordering = ("-version",)
+        unique_together = (("block", "version"),)
+
+    def __str__(self):
+        return f"{self.block_id} v{self.version}"
+
+
 class Asset(models.Model):
     """页面资产（图片/文件/字体上传）。"""
 

@@ -102,6 +102,36 @@
 - `@username` 解析、候选、高亮、站内通知；无效提及不通知。
 - 评论面板支持提及标记和「提到了你」。
 
+### 市场组件签名与沙箱
+- MarketItem 保存 `code_hash`、HMAC-SHA256 `signature`、`signed_at`、`signer`、`sandboxed`、`policy`。
+- `POST /api/market/items/{id}/sign/` 服务端签名；组件安装必须验签且未被篡改。
+- 沙箱组件通过 `sandbox="allow-scripts"` 的 iframe 运行，父页面不 import/eval 远端代码；props/事件走 postMessage。
+- 签名覆盖 URL/元数据/schema，不覆盖远端 ESM 字节；source_url 需 CORS。
+
+### 区块版本与市场流水线
+- `PageBlockVersion` 保存区块 schema 快照；区块创建/更新自动生成版本。
+- `GET/POST /api/blocks/{id}/versions/`、版本详情、草稿回滚。
+- `POST /api/blocks/{id}/publish-market/` 将区块发布/更新到市场，payload 可直接安装。
+- 区块库 UI 提供「版本」「发布市场」。
+
+### 画布大规模虚拟化
+- free 布局 >300 节点裁剪视口外叶子/顶层子树；flow >500 节点使用 content-visibility。
+- 保留选中链、祖先、命名插槽、无 layout 节点；HUD 显示 mounted/total/culled。
+- 被裁节点不在 DOM，快速滚动/拖拽自动滚动时可能短暂空白。
+
+### 评论线程与通知中心
+- PageComment 支持 parent/root/depth/deleted，最多 3 层回复；删除为软删除并保留回复。
+- 评论列表线程树、回复 composer、折叠/展开、`?comment=` 定位。
+- `/admin/notifications` 通知中心：未读筛选、标记已读/全部已读、跳转页面评论。
+
+### 录制回放与撤销栈
+- 回放默认以单条历史命令写入撤销栈（`replayHistoryMode: "single"`）。
+- 回放中止提交部分结果；`jumpTo` 每次生成单条命令；`"none"` 保留旧行为。
+
+### 多用户锁节点徽标
+- NodeRenderer 在画布上挂载 `NodeLockOverlay`：远程节点显示锁图标、用户名、彩色描边。
+- 只显示他人锁；pointer-events none，不阻塞选择/拖拽；支持缩放反向缩放。
+
 ### 实时协作与调试
 - 设计器复用应用 WebSocket 频道：在线成员、远程光标、选区、节点编辑锁。
 - 在线头像 / 连接状态 / 远程锁定数量。

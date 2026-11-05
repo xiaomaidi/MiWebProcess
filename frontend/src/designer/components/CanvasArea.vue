@@ -1,10 +1,10 @@
 <template>
   <div class="wp-canvas-scroll" ref="scrollRef" :class="{ 'is-drag-over': dragOver }" @dragover.prevent="onDragOver" @dragleave="onDragLeave" @drop.prevent="onDrop" @click="onCanvasClick">
     <div class="wp-canvas-inner" ref="innerRef" :style="innerStyle">
-      <div v-if="root" class="wp-canvas-root">
+      <div v-if="root" class="wp-canvas-root" :class="{ 'is-large-flow': flowContainmentActive }">
         <NodeRenderer
           :node="root"
-          :nodes="renderNodes"
+          :nodes="canvasNodes"
           mode="design"
           :canvas-style="canvasStyle"
           :layout-mode="layoutMode"
@@ -41,6 +41,19 @@
         </div>
       </div>
     </div>
+
+    <!-- 大页面虚拟化指示（fixed 定位，不随画布滚动） -->
+    <div
+      v-if="virtualization.active && hudPosition"
+      class="wp-virt-hud"
+      :style="hudStyle"
+      :title="virtualization.title"
+      @pointerdown.stop
+      @click.stop
+    >
+      <span class="wp-virt-hud-dot" aria-hidden="true"></span>
+      <span class="wp-virt-hud-text">{{ virtualization.label }}</span>
+    </div>
   </div>
 </template>
 
@@ -61,6 +74,15 @@ import {
   type Rect,
   type SnapTargets,
 } from "../utils/layout";
+import type { SchemaNode } from "@/types";
+import {
+  DEFAULT_OVERSCAN,
+  VIEWPORT_CELL,
+  computeVisibleNodeIds,
+  planVirtualization,
+  quantizeViewport,
+  type VisibleNodeResult,
+} from "../utils/canvasVirtualization";
 import { deepClone } from "@/utils";
 import { acquire as acquireServerLock, isRemoteLocked, release as releaseServerLock } from "../lock-session";
 import { displayNodes, layoutFor, writeLayout } from "../responsive-layout";
@@ -122,6 +144,169 @@ function fitCanvas() {
 }
 watch(() => editor.fitRequest, () => nextTick(fitCanvas));
 watch(() => editor.device, () => nextTick(fitCanvas));
+
+// ---------- 大页面虚拟化 ----------
+// free 布局：从传给 NodeRenderer 的 nodes map 中移除视口外节点（绝对定位，不影响布局）。
+// flow 布局：不改 DOM，只给画布根加类，用 content-visibility 跳过视口外渲染（保持布局）。
+// 选中节点 / 祖先容器 / 命名插槽节点 / 无 layout 节点始终保留，见 canvasVirtualization.ts。
+const viewport = ref<Rect>({ x: 0, y: 0, width: 0, height: 0 });
+const hudPosition = ref<{ left: number; top: number } | null>(null);
+let measureRaf = 0;
+
+const virtualizationPlan = computed(() =>
+  planVirtualization(Object.keys(renderNodes.value).length, layoutMode.value)
+);
+
+/** 以屏幕像素为基准换算 overscan：缩得越小，预渲染的页面范围越大。 */
+const overscanPx = computed(() => {
+  const zoom = Math.max(0.25, Math.min(3, editor.zoom || 1));
+  return Math.round(Math.min(2400, Math.max(320, DEFAULT_OVERSCAN / zoom)));
+});
+
+/** 画布可见区域（页面逻辑坐标，未乘 zoom）。 */
+function measureCanvasViewport(): Rect | null {
+  const scroll = scrollRef.value;
+  const inner = innerRef.value;
+  if (!scroll || !inner) return null;
+  const zoom = editor.zoom || 1;
+  const width = scroll.clientWidth / zoom;
+  const height = scroll.clientHeight / zoom;
+  if (!(width > 0) || !(height > 0)) return null;
+  const scrollRect = scroll.getBoundingClientRect();
+  const innerRect = inner.getBoundingClientRect();
+  const x = (scrollRect.left - innerRect.left) / zoom;
+  const y = (scrollRect.top - innerRect.top) / zoom;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y, width, height };
+}
+
+function updateHudPosition() {
+  const el = scrollRef.value;
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  const left = rect.left + 10;
+  const top = rect.bottom - 10;
+  const prev = hudPosition.value;
+  if (!prev || prev.left !== left || prev.top !== top) hudPosition.value = { left, top };
+}
+
+/** 测量视口（量化到网格）与 HUD 位置；scroll / resize / zoom / 节点变化后调用。 */
+function measureCanvasViewportAndHud() {
+  updateHudPosition();
+  const raw = measureCanvasViewport();
+  if (!raw) return;
+  const next = quantizeViewport(raw, VIEWPORT_CELL);
+  const prev = viewport.value;
+  if (next.x !== prev.x || next.y !== prev.y || next.width !== prev.width || next.height !== prev.height) {
+    viewport.value = next;
+  }
+}
+
+function scheduleCanvasMeasure() {
+  if (typeof window === "undefined") return;
+  if (measureRaf) return;
+  measureRaf = window.requestAnimationFrame(() => {
+    measureRaf = 0;
+    measureCanvasViewportAndHud();
+  });
+}
+
+/** 裁剪结果；仅 free 布局超过阈值且视口已测量时计算。 */
+const cullResult = computed<VisibleNodeResult | null>(() => {
+  if (virtualizationPlan.value.strategy !== "cull") return null;
+  const vp = viewport.value;
+  if (!(vp.width > 0) || !(vp.height > 0)) return null;
+  return computeVisibleNodeIds(renderNodes.value, vp, overscanPx.value, schema.selectedIds);
+});
+
+let cachedCanvasSource: Record<string, SchemaNode> | null = null;
+let cachedCulledIds: string[] = [];
+let cachedCanvasNodes: Record<string, SchemaNode> | null = null;
+
+function sameIds(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+/**
+ * 传给 NodeRenderer 的节点表：free 大页面只保留可见 / 受保护节点。
+ * 裁剪集合未变化时复用同一对象，避免滚动时整棵渲染树重渲染。
+ */
+const canvasNodes = computed<Record<string, SchemaNode>>(() => {
+  const all = renderNodes.value as Record<string, SchemaNode>;
+  const result = cullResult.value;
+  if (!result || result.culledCount === 0) {
+    cachedCanvasSource = null;
+    cachedCulledIds = [];
+    cachedCanvasNodes = null;
+    return all;
+  }
+  if (cachedCanvasSource === all && cachedCanvasNodes && sameIds(cachedCulledIds, result.culledIds)) {
+    return cachedCanvasNodes;
+  }
+  const out: Record<string, SchemaNode> = {};
+  for (const id of Object.keys(all)) if (result.visible.has(id)) out[id] = all[id];
+  cachedCanvasSource = all;
+  cachedCulledIds = result.culledIds;
+  cachedCanvasNodes = out;
+  return out;
+});
+
+const flowContainmentActive = computed(() => virtualizationPlan.value.strategy === "contain");
+
+function formatCount(value: number): string {
+  return value >= 10000 ? `${Math.round(value / 100) / 10}k` : String(value);
+}
+
+const virtualization = computed(() => {
+  const plan = virtualizationPlan.value;
+  if (!plan.active) return { active: false, label: "", title: "" };
+  if (plan.strategy === "contain") {
+    return {
+      active: true,
+      label: `大页面 · CSS 隔离 · ${formatCount(plan.nodeCount)} 节点`,
+      title: `流式布局大页面（>${plan.threshold} 节点）：对节点启用 content-visibility: auto + contain-intrinsic-size，跳过视口外渲染，但不删除 DOM，保持布局与滚动高度。`,
+    };
+  }
+  const result = cullResult.value;
+  const culled = result?.culledCount ?? 0;
+  const mounted = Math.max(0, plan.nodeCount - culled);
+  return {
+    active: true,
+    label: result
+      ? `虚拟渲染 ${formatCount(mounted)}/${formatCount(plan.nodeCount)} · 裁 ${formatCount(culled)}`
+      : "虚拟渲染 · 测量中",
+    title: `自由布局大页面（>${plan.threshold} 节点）：只挂载视口 + ${overscanPx.value}px 预渲染范围内的节点。选中节点及其祖先、命名插槽节点、无 layout 节点始终保留；非顶层容器不裁撤。被裁节点不在 DOM 中，无法直接点击/拖拽。`,
+  };
+});
+
+const hudStyle = computed<Record<string, string>>((): Record<string, string> =>
+  hudPosition.value ? { left: `${hudPosition.value.left}px`, top: `${hudPosition.value.top}px` } : {}
+);
+
+/*
+ * 已知取舍 / 限制（大页面虚拟化）：
+ * - 裁剪依据 schema layout 计算；祖先处于文档流（无 layout）时绝对坐标不可推断，这类节点一律保留。
+ * - 被裁节点不在 DOM 中：点击 / 拖拽命中测试只对已挂载节点生效；视口与 overscan 内的节点始终挂载，
+ *   因此正常拖放不受影响；快速滚动（含 HTML5 拖拽自动滚动）期间可能出现短暂空白。
+ * - 顶层容器整棵子树被裁时，内部组件会卸载并在滚回时重建：图表实例、折叠状态等局部状态会重置。
+ * - 命名插槽子节点（表格列 / 标签页等）与非顶层容器不会被裁，避免破坏父组件渲染协议。
+ * - flow 布局的 content-visibility 是浏览器兜底：不支持时自动退化为普通渲染；占位尺寸可能造成
+ *   首次滚动到该区域时的高度轻微跳动（contain-intrinsic-size: auto 会记住上次渲染尺寸）。
+ */
+
+watch(
+  () => [
+    editor.zoom,
+    editor.device,
+    layoutMode.value,
+    canvasStyle.value.width,
+    canvasStyle.value.height,
+    Object.keys(renderNodes.value).length,
+  ],
+  () => nextTick(scheduleCanvasMeasure)
+);
 
 // ---------- 设计态锁定 / 隐藏（只注入到设计画布，运行态不生效） ----------
 const designCss = computed(() => {
@@ -549,16 +734,23 @@ onMounted(() => {
   const el = wrapperEl();
   el?.addEventListener("pointerdown", pd);
   el?.addEventListener("click", onClickCapture, true);
+  el?.addEventListener("scroll", scheduleCanvasMeasure, { passive: true });
+  window.addEventListener("resize", scheduleCanvasMeasure);
   window.addEventListener("pointermove", pm);
   window.addEventListener("pointerup", pu);
   window.addEventListener("pointercancel", pu);
   nextTick(() => {
     fitCanvas();
+    scheduleCanvasMeasure();
     // 首次挂载时左右面板宽度可能尚未完成布局，再补一次。
-    window.setTimeout(fitCanvas, 150);
+    window.setTimeout(() => {
+      fitCanvas();
+      measureCanvasViewportAndHud();
+    }, 150);
   });
   if (el && typeof ResizeObserver !== "undefined") {
     fitObserver = new ResizeObserver(() => {
+      scheduleCanvasMeasure();
       window.clearTimeout(fitTimer);
       fitTimer = window.setTimeout(fitCanvas, 80);
     });
@@ -569,9 +761,13 @@ onBeforeUnmount(() => {
   const el = wrapperEl();
   el?.removeEventListener("pointerdown", pd);
   el?.removeEventListener("click", onClickCapture, true);
+  el?.removeEventListener("scroll", scheduleCanvasMeasure);
+  window.removeEventListener("resize", scheduleCanvasMeasure);
   window.removeEventListener("pointermove", pm);
   window.removeEventListener("pointerup", pu);
   window.removeEventListener("pointercancel", pu);
+  if (measureRaf) window.cancelAnimationFrame(measureRaf);
+  measureRaf = 0;
   fitObserver?.disconnect();
   window.clearTimeout(fitTimer);
   window.clearTimeout(suppressClickTimer);
@@ -622,6 +818,37 @@ function onCanvasClick(e: MouseEvent) {
 .wp-canvas-empty {
   color: var(--el-text-color-secondary);
   padding: 40px;
+}
+/* 大页面虚拟化指示（compact HUD）：固定定位在画布区左下角，不遮挡画布内容。 */
+.wp-virt-hud {
+  position: fixed;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 320px;
+  padding: 3px 9px;
+  border-radius: 10px;
+  border: 1px solid var(--el-color-primary-light-7);
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+  transform: translateY(-100%);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  cursor: default;
+}
+.wp-virt-hud-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.wp-virt-hud-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .wp-canvas-overlay {
   position: absolute;
@@ -745,5 +972,14 @@ function onCanvasClick(e: MouseEvent) {
 .wp-node-free:hover .wp-resize-handle,
 .wp-node-free.wp-node-selected .wp-resize-handle {
   display: block;
+}
+/* 流式大页面兜底：content-visibility 跳过视口外渲染，DOM 与布局保留（不裁剪节点）。 */
+.wp-canvas-root.is-large-flow .wp-canvas .wp-node {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 160px;
+}
+/* 选中节点即使在视口外也保持渲染，选择 / 拖拽状态不因滚动丢失。 */
+.wp-canvas-root.is-large-flow .wp-canvas .wp-node.wp-node-selected {
+  content-visibility: visible;
 }
 </style>
